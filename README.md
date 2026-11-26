@@ -1,6 +1,8 @@
 # Sky Letters — a 3D fighter-jet letter-delivery game
 
-[![make.fun bounty](https://img.shields.io/badge/make.fun-bounty-best--flight--game--20261126--0057-orange)](https://make.fun/bounty/best-flight-game-20261126-0057)
+[![make.fun · best-flight-game-20261126-0057](https://make.fun/badge/best-flight-game-20261126-0057.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+[![rank](https://make.fun/badge/best-flight-game-20261126-0057/wantakimax6/sky-letters-3d/rank.svg)](https://make.fun/bounty/best-flight-game-20261126-0057/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
+[![reward](https://make.fun/badge/best-flight-game-20261126-0057/wantakimax6/sky-letters-3d/reward.svg)](https://make.fun/bounty/best-flight-game-20261126-0057?utm_source=github&utm_medium=readme&utm_campaign=best-flight-game-20261126-0057)
 [![repo](https://img.shields.io/badge/repo-wantakimax6%2Fsky--letters--3d-blue)](https://github.com/wantakimax6/sky-letters-3d)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
