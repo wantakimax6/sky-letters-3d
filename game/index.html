@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sky Letters — a flight game about letters that find their sky</title>
+<script>
+  // Error collection for testing: any page error lands here, never silently.
+  window.__errors = [];
+  window.addEventListener('error', function (e) { window.__errors.push(String(e.message || e.error)); });
+  window.addEventListener('unhandledrejection', function (e) { window.__errors.push('rejection: ' + String(e.reason)); });
+</script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1b2a44; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #shotinfo { display: none; }
+  .hidden { display: none !important; }
+  .panel { position: fixed; z-index: 5; background: rgba(20, 18, 30, 0.72); color: #fff; border-radius: 12px; padding: 10px 14px; box-shadow: 0 2px 14px rgba(0,0,0,0.35); }
+  .panel .label { font-size: 11px; letter-spacing: 0.14em; color: #ffd94d; font-weight: 700; }
+  .panel .big { font-size: 26px; font-weight: 800; line-height: 1.1; }
+  .panel .row { display: flex; gap: 22px; }
+  #hud-topleft { top: 14px; left: 14px; }
+  #hud-compass-wrap { top: 14px; left: 50%; transform: translateX(-50%); padding: 6px 8px; }
+  #hud-objective-panel { top: 14px; right: 14px; width: 360px; }
+  #hud-objective-panel #hud-objective { letter-spacing: 0.02em; font-size: 11.5px; }
+  #hud-objective-panel .sub { font-size: 14px; margin-top: 4px; color: #ffe9b8; }
+  #hud-objective-panel .meta { font-size: 13px; margin-top: 6px; color: #fff; }
+  #hud-objective-panel .hearts { font-size: 15px; color: #ff8a9a; margin-top: 4px; letter-spacing: 2px; }
+  .bar-wrap { position: fixed; z-index: 5; width: 22px; height: 210px; background: rgba(20,18,30,0.6); border-radius: 11px; padding: 4px; box-sizing: border-box; }
+  .bar-wrap .fill { position: absolute; bottom: 4px; left: 4px; right: 4px; border-radius: 7px; background: #39d97e; }
+  .bar-wrap .cap { position: absolute; top: -18px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+  .bar-wrap .pct { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 11px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+  #hud-thr { left: 18px; top: 50%; transform: translateY(-50%); }
+  #hud-thr .fill { background: #ffc93c; }
+  #hud-fuel { right: 18px; top: 50%; transform: translateY(-50%); }
+  #hud-horizon-wrap { position: fixed; z-index: 5; left: 16px; bottom: 16px; text-align: center; }
+  #hud-horizon-wrap .cap { font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.7); margin-top: 2px; }
+  #hud-condition { right: 16px; bottom: 16px; width: 220px; }
+  #hud-condition .track { height: 12px; background: rgba(255,255,255,0.18); border-radius: 6px; margin-top: 6px; overflow: hidden; }
+  #hud-condition .track .fill { height: 100%; background: #39d97e; border-radius: 6px; }
+  #hud-score { position: fixed; z-index: 5; right: 16px; bottom: 86px; color: #fff; font-weight: 700; font-size: 14px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #hud-timer { position: fixed; z-index: 5; left: 50%; top: 84px; transform: translateX(-50%); color: #ffd94d; font-weight: 800; font-size: 18px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #hud-warn { position: fixed; z-index: 5; left: 50%; top: 116px; transform: translateX(-50%); color: #ff5a4d; font-weight: 800; font-size: 17px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #dialogue { position: fixed; z-index: 6; left: 50%; bottom: 18px; transform: translateX(-50%); width: 620px; max-width: calc(100vw - 480px); background: rgba(18, 20, 34, 0.88); border: 2px solid rgba(255, 201, 60, 0.7); border-radius: 14px; color: #fff; padding: 12px 16px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+  #dlg-portrait { width: 92px; height: 92px; border-radius: 50%; flex: none; }
+  #dlg-name { color: #ffd94d; font-weight: 800; font-size: 16px; }
+  #dlg-text { font-size: 16px; line-height: 1.45; margin-top: 4px; }
+  #dlg-hint { font-size: 12px; color: #ffd94d; margin-top: 8px; text-align: right; }
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(10, 14, 30, 0.45); }
+  .card { background: rgba(20, 18, 34, 0.92); color: #fff; border: 2px solid rgba(255, 201, 60, 0.65); border-radius: 18px; padding: 28px 34px; max-width: 640px; text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+  .card h1 { margin: 0 0 4px; font-size: 44px; color: #ffd94d; letter-spacing: 0.02em; }
+  .card h2 { margin: 0 0 10px; font-size: 30px; color: #ffd94d; }
+  .card p { font-size: 16px; line-height: 1.55; color: #f2ead8; }
+  .card .controls { font-size: 14px; line-height: 1.7; color: #cfe8f2; margin: 14px 0; }
+  .card button { font-size: 18px; font-weight: 800; color: #241a08; background: #ffc93c; border: none; border-radius: 12px; padding: 12px 28px; cursor: pointer; }
+  .card button:hover { background: #ffd94d; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Sky Letters: fly the seaplane Pipit and deliver five handwritten letters across the archipelago"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+<div id="shotinfo"></div>
+
+<div id="hud-topleft" class="panel">
+  <div class="row">
+    <div><div class="label">ALTITUDE</div><div class="big" id="hud-alt">480 ft</div></div>
+    <div><div class="label">SPEED</div><div class="big" id="hud-spd">70 kt</div></div>
+    <div><div class="label">HEADING</div><div class="big" id="hud-hdg">000°</div></div>
+  </div>
+</div>
+<div id="hud-compass-wrap" class="panel"><canvas id="hud-compass" width="420" height="56"></canvas></div>
+<div id="hud-objective-panel" class="panel">
+  <div class="label" id="hud-objective">LETTER 1 OF 5 — For Grandma Sari</div>
+  <div class="sub" id="hud-objective-sub">Golden ring — 165 m ahead</div>
+  <div class="meta" id="hud-letters">Letters delivered: 0 / 5</div>
+  <div class="hearts" id="hud-hearts">♥♥♥♡♡</div>
+</div>
+<div id="hud-thr" class="bar-wrap"><div class="cap">THR</div><div class="fill" id="hud-thr-fill" style="height:60%"></div><div class="pct" id="hud-thr-pct">60%</div></div>
+<div id="hud-fuel" class="bar-wrap"><div class="cap">FUEL</div><div class="fill" id="hud-fuel-fill" style="height:100%"></div><div class="pct" id="hud-fuel-pct">100%</div></div>
+<div id="hud-horizon-wrap"><canvas id="hud-horizon" width="120" height="120"></canvas><div class="cap">HORIZON</div></div>
+<div id="hud-condition" class="panel"><div class="label">PIPIT CONDITION</div><div class="track"><div class="fill" id="hud-condition-fill" style="width:100%"></div></div></div>
+<div id="hud-score">Score 0</div>
+<div id="hud-timer" class="hidden"></div>
+<div id="hud-warn" class="hidden"></div>
+
+<div id="dialogue" class="hidden">
+  <canvas id="dlg-portrait" width="92" height="92"></canvas>
+  <div style="flex:1">
+    <div id="dlg-name">Nara — Pilot, 19</div>
+    <div id="dlg-text"></div>
+    <div id="dlg-hint">Press Enter to continue ▶</div>
+  </div>
+</div>
+
+<div id="title-screen" class="overlay hidden">
+  <div class="card">
+    <h1>SKY LETTERS</h1>
+    <p>The radio network has failed. Nara, 19, flies her little seaplane <b>Pipit</b> across the archipelago, delivering the handwritten letters no one else will carry — a grandmother's news, a birthday wish, two brothers' apology, a love letter ten years late, and one last letter of her own.</p>
+    <p><b>Five letters. Five flights. Every letter finds its sky.</b></p>
+    <div class="controls">
+      ↑ / ↓ pitch &nbsp;•&nbsp; ← / → bank and turn &nbsp;•&nbsp; W / S or Shift / Ctrl throttle<br>
+      Space brake &nbsp;•&nbsp; drag the mouse to steer &nbsp;•&nbsp; P pause &nbsp;•&nbsp; M mute &nbsp;•&nbsp; R retry<br>
+      Fly through the golden rings, watch your fuel, and land slow and gentle.
+    </div>
+    <button id="start-btn">Start flying</button>
+  </div>
+</div>
+<div id="pause-screen" class="overlay hidden">
+  <div class="card"><h2>Paused</h2><p>The letters will wait for you.</p><p>Press P to resume.</p></div>
+</div>
+<div id="crash-screen" class="overlay hidden">
+  <div class="card"><h2>Pipit is hurt</h2><p id="crash-reason"></p><p>Slow down, line up, and settle onto the water gently.</p><button id="retry-btn">Try again</button></div>
+</div>
+<div id="complete-screen" class="overlay hidden">
+  <div class="card"><h2>Every letter finds its sky</h2><p id="complete-score"></p><p>Nara delivered all five letters. Her mother would be proud — the sky remembers every pilot who flies gently, bravely, and always toward the light.</p><button id="again-btn">Fly again</button></div>
+</div>
+
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
