@@ -195,6 +195,15 @@ export function createRenderer(canvas, rng) {
     if (rollSk && rollSk.active > 0) {
       particles.burst(p.x, p.alt, p.z, 0x9fe8ff, 2, 4, 0.3, 0.8);
     }
+    // Fireworks over Kota Langit during the sunset finale: a new burst
+    // above the city every couple of seconds while the sky is sunset.
+    if (skyKey === 'sunset' && Math.floor(time * 0.5) !== draw._fwLast) {
+      draw._fwLast = Math.floor(time * 0.5);
+      const a = Math.random() * Math.PI * 2;
+      const col = [0xffb36b, 0xff6b8a, 0x9fe8ff, 0xffe9a0, 0xb79aff][Math.floor(Math.random() * 5)];
+      particles.burst(-340 + Math.cos(a) * 170, 175 + Math.random() * 50,
+        -2440 + Math.sin(a) * 170, col, 22, 26, 1.1, 1.5);
+    }
     // Storm clouds only hang over the canyon run (mission 3).
     for (const c of terrain.stormClouds) c.visible = state.missionIndex === 2;
     plane.update(state, 1 / 60, time);

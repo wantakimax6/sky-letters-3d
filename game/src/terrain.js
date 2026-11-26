@@ -86,7 +86,11 @@ function islandGeometry(isl) {
     for (let j = 0; j < segs; j += 1) {
       const a = i * stride + j;
       const b = a + stride;
-      indices.push(a, b, a + 1, b, b + 1, a + 1);
+      // Winding matters: (a, a+1, b) faces UP. The old order (a, b, a+1)
+      // faced down — the flat tops were backface-culled from above, so
+      // the city plateau (and its ground disc) were invisible and the
+      // islands were lit only by the hemisphere ground colour.
+      indices.push(a, a + 1, b, b, a + 1, b + 1);
     }
   }
   const geo = new THREE.BufferGeometry();
@@ -153,6 +157,68 @@ export function buildTerrain(rng, tex) {
     g.rotation.y = rot;
     return g;
   }
+  function buildTree(x, y, z, s) {
+    // A leafy city-park tree: trunk plus two foliage spheres with the
+    // painted leaf texture, so the park reads green from the air.
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+    trunk.scale.set(1.4, 1.1, 1.4);
+    trunk.position.y = 3.5;
+    g.add(trunk);
+    const leafMat = new THREE.MeshStandardMaterial({
+      map: T.parkFoliage || null, color: T.parkFoliage ? 0xffffff : PALETTE.palm,
+      roughness: 0.95,
+    });
+    const c1 = new THREE.Mesh(new THREE.SphereGeometry(3.4 * s, 10, 8), leafMat);
+    c1.position.y = 8.4;
+    c1.scale.y = 0.85;
+    g.add(c1);
+    const c2 = new THREE.Mesh(new THREE.SphereGeometry(2.4 * s, 10, 8), leafMat);
+    c2.position.set(1.8 * s, 10.2, 0.8 * s);
+    c2.scale.y = 0.8;
+    g.add(c2);
+    g.position.set(x, y, z);
+    g.rotation.y = rng.range(0, Math.PI * 2);
+    return g;
+  }
+  // The city ground: a radial-grid disc that follows heightAt exactly
+  // (like the island meshes) but with planar UVs, so the painted city
+  // map — streets, plaza, park, market, airport — lands on the land
+  // itself, in world coordinates. u east, v south (texture top = north).
+  function cityGroundGeometry(isl) {
+    const rings = 16;
+    const segs = 64;
+    const R = 295;
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+    for (let i = 0; i <= rings; i += 1) {
+      const rr = (R * i) / rings;
+      for (let j = 0; j <= segs; j += 1) {
+        const a = (j / segs) * Math.PI * 2;
+        const x = isl.x + Math.cos(a) * rr;
+        const z = isl.z + Math.sin(a) * rr;
+        const h = i === 0 ? heightAt(isl.x, isl.z) : heightAt(x, z);
+        positions.push(x, Math.max(0.3, h) + 0.35, z);
+        uvs.push((x - (isl.x - 300)) / 600, 1 - (z - (isl.z - 300)) / 600);
+      }
+    }
+    const stride = segs + 1;
+    for (let i = 0; i < rings; i += 1) {
+      for (let j = 0; j < segs; j += 1) {
+        const a = i * stride + j;
+        const b = a + stride;
+        // Same upward winding as islandGeometry (see above).
+        indices.push(a, a + 1, b, b, a + 1, b + 1);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }
 
   // City building facades: six procedural facade textures (lit windows,
   // balconies, shop fronts), used as map and emissive map so the windows
@@ -179,43 +245,167 @@ export function buildTerrain(rng, tex) {
       map: f, emissiveMap: f, emissive: 0xbb9955, emissiveIntensity: 0.55, roughness: 0.9, metalness: 0.05,
     })
   ));
-  const facadeTopMat = new THREE.MeshStandardMaterial({ color: 0x3a4152, roughness: 0.9 });
+  const facadeTopMat = new THREE.MeshStandardMaterial({
+    map: T.rooftop || null, color: T.rooftop ? 0xffffff : 0x3a4152, roughness: 0.9,
+  });
   const streetMat = new THREE.MeshStandardMaterial({
     map: T.tarmac || null, color: T.tarmac ? 0xffffff : 0x2b2f3a, roughness: 0.95,
   });
   const towerGlassMat = new THREE.MeshPhongMaterial({ color: 0x9fd8ef, shininess: 120, specular: 0xffffff });
 
-  // The coastal city Kota Langit: dozens of towers on the island
-  // plateau, streets, a harbour pier, a bridge to Bridge Isle, and an
-  // airport with a lit runway and a control tower on the east edge.
+  // The coastal city Kota Langit, rebuilt as a PROPER ISLAND CITY:
+  // a raised landmass with a painted ground map (streets, plaza, park,
+  // market, airport) hugging the terrain, buildings standing ON the
+  // ground at their own ground height, a park with trees and a fountain,
+  // a plaza monument, a lit night-market street, street lamps, a harbour
+  // pier, a bridge to Bridge Isle, and an airport with a lit runway and
+  // a control tower on the east edge — all on land, never on water.
   function buildCity(isl) {
     const g = new THREE.Group();
     const topY = heightAt(isl.x, isl.z);
+    // The ground itself: the painted city map on terrain-hugging geometry.
+    const groundMat = new THREE.MeshStandardMaterial({
+      map: T.cityLand || null, normalMap: T.cityLandNormal || null,
+      normalScale: new THREE.Vector2(0.5, 0.5),
+      color: T.cityLand ? 0xffffff : 0x6a9a5a, roughness: 0.95,
+    });
+    const ground = new THREE.Mesh(cityGroundGeometry(isl), groundMat);
+    ground.receiveShadow = true;
+    g.add(ground);
+    // Buildings: each stands on its own ground height, with a textured
+    // rooftop and an air-conditioning box on some roofs.
+    const acGeo = new THREE.BoxGeometry(3, 1.4, 2.4);
+    const acMat = new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.8, metalness: 0.3 });
     CITY_BUILDINGS.forEach((b, bi) => {
       const fm = facadeMats[bi % facadeMats.length];
       const tower = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d),
         [fm, fm, facadeTopMat, facadeTopMat, fm, fm]);
       tower.castShadow = true;
-      tower.position.set(b.x, topY + b.h / 2, b.z);
+      const groundY = heightAt(b.x, b.z);
+      tower.position.set(b.x, groundY + b.h / 2, b.z);
       tower.rotation.y = b.rot || 0;
       g.add(tower);
+      if ((bi % 5) === 0) {
+        const ac = new THREE.Mesh(acGeo, acMat);
+        ac.position.set(b.x, groundY + b.h + 0.7, b.z);
+        g.add(ac);
+      }
       if (b.tower) {
         const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 6),
           new THREE.MeshBasicMaterial({ color: 0xff4444 }));
-        beacon.position.set(b.x, topY + b.h + 1.2, b.z);
+        beacon.position.set(b.x, groundY + b.h + 1.2, b.z);
         g.add(beacon);
       }
     });
-    // Streets: dark strips along the grid.
-    for (let i = -3; i <= 3; i += 1) {
-      const s1 = new THREE.Mesh(new THREE.PlaneGeometry(380, 10), streetMat);
-      s1.rotation.x = -Math.PI / 2;
-      s1.position.set(isl.x, topY + 0.4, isl.z + i * 58);
-      g.add(s1);
-      const s2 = new THREE.Mesh(new THREE.PlaneGeometry(10, 380), streetMat);
-      s2.rotation.x = -Math.PI / 2;
-      s2.position.set(isl.x + i * 58, topY + 0.4, isl.z);
-      g.add(s2);
+    // Central plaza: a paved stone circle and the Sky Letters monument —
+    // a tapered obelisk with a gold orb, ringed by lamp posts.
+    const plazaMat = new THREE.MeshStandardMaterial({
+      map: T.plazaStone || null, color: T.plazaStone ? 0xffffff : 0xc4bcac, roughness: 0.9,
+    });
+    const plaza = new THREE.Mesh(new THREE.CircleGeometry(32, 32), plazaMat);
+    plaza.rotation.x = -Math.PI / 2;
+    plaza.position.set(isl.x, topY + 0.55, isl.z);
+    g.add(plaza);
+    const monumentMat = new THREE.MeshStandardMaterial({
+      map: T.memorialStone || null, color: T.memorialStone ? 0xffffff : 0xf8f4ec, roughness: 0.6,
+    });
+    const obelisk = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 4.2, 24, 4), monumentMat);
+    obelisk.position.set(isl.x, topY + 12, isl.z);
+    obelisk.rotation.y = Math.PI / 4;
+    obelisk.castShadow = true;
+    g.add(obelisk);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(2.6, 12, 10),
+      new THREE.MeshBasicMaterial({ color: 0xffd94d }));
+    orb.position.set(isl.x, topY + 26, isl.z);
+    g.add(orb);
+    const lampPoleMat = new THREE.MeshStandardMaterial({ color: 0x2b2f3a, roughness: 0.7, metalness: 0.4 });
+    const lampGlowMat = new THREE.MeshBasicMaterial({ color: 0xffd97a });
+    const lampPoleGeo = new THREE.CylinderGeometry(0.25, 0.3, 7, 6);
+    const lampGlowGeo = new THREE.SphereGeometry(0.9, 8, 6);
+    for (let i = 0; i < 8; i += 1) {
+      const a = (i / 8) * Math.PI * 2;
+      const lx = isl.x + Math.cos(a) * 26;
+      const lz = isl.z + Math.sin(a) * 26;
+      const pole = new THREE.Mesh(lampPoleGeo, lampPoleMat);
+      pole.position.set(lx, heightAt(lx, lz) + 3.5, lz);
+      g.add(pole);
+      const glow = new THREE.Mesh(lampGlowGeo, lampGlowMat);
+      glow.position.set(lx, heightAt(lx, lz) + 7.2, lz);
+      g.add(glow);
+    }
+    // The city park (north-west quadrant): leafy trees, a fountain with
+    // a rippling water disc, and benches.
+    const parkCX = isl.x - 116;
+    const parkCZ = isl.z - 116;
+    for (let i = 0; i < 14; i += 1) {
+      const a = rng.range(0, Math.PI * 2);
+      const rr = rng.range(18, 52);
+      const tx = parkCX + Math.cos(a) * rr;
+      const tz = parkCZ + Math.sin(a) * rr;
+      if (Math.hypot(tx - parkCX, tz - parkCZ) < 14) continue; // keep the fountain clear
+      g.add(buildTree(tx, Math.max(0.4, heightAt(tx, tz)) - 0.3, tz, rng.range(0.8, 1.3)));
+    }
+    const fountainBasin = new THREE.Mesh(new THREE.CylinderGeometry(11, 12, 2.4, 20),
+      new THREE.MeshStandardMaterial({
+        map: T.concrete || null, color: T.concrete ? 0xffffff : 0x9a9a96, roughness: 0.9,
+      }));
+    fountainBasin.position.set(parkCX, heightAt(parkCX, parkCZ) + 1.2, parkCZ);
+    g.add(fountainBasin);
+    const fountainWater = new THREE.Mesh(new THREE.CircleGeometry(10, 20),
+      new THREE.MeshStandardMaterial({
+        map: T.waterFountain || null, color: T.waterFountain ? 0xffffff : 0x3f8fbf,
+        roughness: 0.25, metalness: 0.1,
+      }));
+    fountainWater.rotation.x = -Math.PI / 2;
+    fountainWater.position.set(parkCX, heightAt(parkCX, parkCZ) + 2.5, parkCZ);
+    g.add(fountainWater);
+    const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.4, 7, 8), monumentMat);
+    spire.position.set(parkCX, heightAt(parkCX, parkCZ) + 6, parkCZ);
+    g.add(spire);
+    const benchGeo = new THREE.BoxGeometry(4, 0.5, 1.4);
+    const benchMat = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.9 });
+    for (const [bx, bz, rot] of [[-20, 0, 0], [20, 0, 0], [0, -20, Math.PI / 2], [0, 20, Math.PI / 2]]) {
+      const bench = new THREE.Mesh(benchGeo, benchMat);
+      bench.position.set(parkCX + bx, heightAt(parkCX + bx, parkCZ + bz) + 0.6, parkCZ + bz);
+      bench.rotation.y = rot;
+      g.add(bench);
+    }
+    // Night market along the south street: stalls with striped awnings
+    // and warm glowing fronts.
+    const awningMat = new THREE.MeshStandardMaterial({
+      map: T.marketAwning || null, color: T.marketAwning ? 0xffffff : 0xd63b2b,
+      roughness: 0.85, side: THREE.DoubleSide,
+    });
+    const stallBodyMat = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 0.9 });
+    const stallGlowMat = new THREE.MeshBasicMaterial({ color: 0xffb36b });
+    const stallBodyGeo = new THREE.BoxGeometry(6, 3, 4);
+    const awningGeo = new THREE.PlaneGeometry(7.5, 4.5);
+    for (let i = 0; i < 10; i += 1) {
+      const sx = isl.x - 108 + i * 24;
+      const sz = isl.z + 152;
+      const sy = heightAt(sx, sz);
+      const body = new THREE.Mesh(stallBodyGeo, stallBodyMat);
+      body.position.set(sx, sy + 1.5, sz);
+      g.add(body);
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.6), stallGlowMat);
+      glow.position.set(sx, sy + 1.8, sz - 2.05);
+      g.add(glow);
+      const awn = new THREE.Mesh(awningGeo, awningMat);
+      awn.rotation.x = -Math.PI / 2 + 0.5;
+      awn.position.set(sx, sy + 3.6, sz - 0.6);
+      g.add(awn);
+    }
+    // Street lamps at the four main intersections: poles on the ground,
+    // warm glowing heads.
+    for (const [lx, lz] of [[-87, -87], [87, -87], [-87, 87], [87, 87], [-29, 29], [29, -29]]) {
+      const x = isl.x + lx;
+      const z = isl.z + lz;
+      const pole = new THREE.Mesh(lampPoleGeo, lampPoleMat);
+      pole.position.set(x, heightAt(x, z) + 3.5, z);
+      g.add(pole);
+      const glow = new THREE.Mesh(lampGlowGeo, lampGlowMat);
+      glow.position.set(x, heightAt(x, z) + 7.2, z);
+      g.add(glow);
     }
     // Traffic lights at four intersections: tiny red/green dots.
     const lightRed = new THREE.MeshBasicMaterial({ color: 0xff4444 });
@@ -224,58 +414,71 @@ export function buildTerrain(rng, tex) {
       [-58, -58, lightRed], [58, -58, lightGreen], [-58, 58, lightGreen], [58, 58, lightRed],
     ]) {
       const l = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), mat);
-      l.position.set(isl.x + lx, topY + 6, isl.z + lz);
+      l.position.set(isl.x + lx, heightAt(isl.x + lx, isl.z + lz) + 6, isl.z + lz);
       g.add(l);
     }
-    // Harbour pier with docked boats on the south shore.
+    // Harbour pier with docked boats on the south shore, at the water's
+    // edge where the land meets the sea.
     const pier = new THREE.Mesh(new THREE.BoxGeometry(90, 1.2, 8), streetMat);
-    pier.position.set(isl.x, 1.0, isl.z + isl.r * 0.92);
+    pier.position.set(isl.x, 1.2, isl.z + isl.r - 8);
     g.add(pier);
-    // Bridge south of the city centre, to Bridge Isle: deck, two
-    // towers, cables. It sits off the main flight path, so its towers
-    // never loom in front of a landing approach.
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(260, 2.5, 12), streetMat);
-    deck.position.set(isl.x + isl.r + 100, 14, isl.z + 180);
+    // Bridge to Bridge Isle: deck, two tall towers that reach the water,
+    // and lamp dots along the deck.
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(110, 2.5, 12), streetMat);
+    deck.position.set(12, 14, isl.z + 180);
     g.add(deck);
-    for (const bx of [isl.x + isl.r + 40, isl.x + isl.r + 170]) {
-      const tower = new THREE.Mesh(new THREE.BoxGeometry(6, 34, 6), facadeTopMat);
-      tower.position.set(bx, 30, isl.z + 180);
+    for (const bx of [-30, 55]) {
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(6, 48, 6), facadeTopMat);
+      tower.position.set(bx, 24, isl.z + 180);
       g.add(tower);
+      const topLight = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+      topLight.position.set(bx, 49, isl.z + 180);
+      g.add(topLight);
     }
-    // Airport: lit runway strip + control tower on the east edge.
-    const runway = new THREE.Mesh(new THREE.BoxGeometry(16, 1.0, 200),
+    for (let i = 0; i < 7; i += 1) {
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 6), lampGlowMat);
+      lamp.position.set(-36 + i * 16, 16.2, isl.z + 180);
+      g.add(lamp);
+    }
+    // Airport: lit runway strip + control tower on the east edge, both
+    // on the plateau land.
+    const runway = new THREE.Mesh(new THREE.BoxGeometry(16, 1.2, 170),
       new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.95 }));
-    runway.position.set(isl.x + 190, topY + 0.6, isl.z);
+    runway.position.set(isl.x + 180, topY + 0.8, isl.z);
     g.add(runway);
     // Asphalt top with painted centreline and threshold marks, so the
     // runway reads as a real strip from the air. The texture is
     // landscape, so it is rotated to run along the strip.
     if (T.runway) {
-      const rwTex = T.runway.clone();
-      rwTex.needsUpdate = true;
-      rwTex.center.set(0.5, 0.5);
-      rwTex.rotation = Math.PI / 2;
+      // The shared runway texture, rotated once to run along the strip.
+      // (Cloning it and marking the clone for update before the image
+      // loads logs a THREE warning; the loader marks it itself on load.)
+      T.runway.center.set(0.5, 0.5);
+      T.runway.rotation = Math.PI / 2;
       const rwTop = new THREE.Mesh(
-        new THREE.PlaneGeometry(16, 200),
-        new THREE.MeshStandardMaterial({ map: rwTex, roughness: 0.9 }),
+        new THREE.PlaneGeometry(16, 170),
+        new THREE.MeshStandardMaterial({ map: T.runway, roughness: 0.9 }),
       );
       rwTop.rotation.x = -Math.PI / 2;
-      rwTop.position.set(isl.x + 190, topY + 1.15, isl.z);
+      rwTop.position.set(isl.x + 180, topY + 1.45, isl.z);
       g.add(rwTop);
     }
     const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffd94d });
     for (let i = 0; i < 9; i += 1) {
       for (const side of [-1, 1]) {
         const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), edgeMat);
-        lamp.position.set(isl.x + 190 + side * 9, topY + 1.6, isl.z - 90 + i * 22);
+        lamp.position.set(isl.x + 180 + side * 9, topY + 1.9, isl.z - 76 + i * 19);
         g.add(lamp);
       }
     }
+    const ctX = isl.x + 150;
+    const ctZ = isl.z + 80;
     const ctBase = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 4.5, 26, 10), facadeTopMat);
-    ctBase.position.set(isl.x + 150, topY + 13, isl.z + 80);
+    ctBase.position.set(ctX, heightAt(ctX, ctZ) + 13, ctZ);
     g.add(ctBase);
     const ctTop = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 4.5, 5, 10), towerGlassMat);
-    ctTop.position.set(isl.x + 150, topY + 28, isl.z + 80);
+    ctTop.position.set(ctX, heightAt(ctX, ctZ) + 28, ctZ);
     g.add(ctTop);
     return g;
   }
@@ -344,7 +547,9 @@ export function buildTerrain(rng, tex) {
   // keep the sand/grass/rock zoning, while the bump adds photographic
   // grain without shifting the colours.
   const islandMat = new THREE.MeshStandardMaterial({
-    vertexColors: true, bumpMap: T.terrainDetail || null, bumpScale: 0.9, roughness: 0.95, metalness: 0,
+    vertexColors: true, bumpMap: T.terrainDetail || null, bumpScale: 0.9,
+    normalMap: T.terrainNormal || null, normalScale: new THREE.Vector2(0.5, 0.5),
+    roughness: 0.95, metalness: 0,
   });
   const sandMat = new THREE.MeshStandardMaterial({
     map: T.sand || null, color: T.sand ? 0xffffff : PALETTE.sand, roughness: 0.95,
@@ -410,7 +615,9 @@ export function buildTerrain(rng, tex) {
     if (isl.kind === 'volcano') {
       const cone = new THREE.Mesh(new THREE.ConeGeometry(isl.r * 0.5, isl.h * 0.85, 24),
         new THREE.MeshStandardMaterial({
-          map: T.basalt || null, color: T.basalt ? 0xffffff : PALETTE.volcano, roughness: 1,
+          map: T.volcanoDetail || T.basalt || null,
+          bumpMap: T.basalt || null, bumpScale: 0.7,
+          color: T.volcanoDetail || T.basalt ? 0xffffff : PALETTE.volcano, roughness: 1,
         }));
       cone.castShadow = true;
       cone.position.set(isl.x, topY * 0.4, isl.z);
@@ -432,7 +639,11 @@ export function buildTerrain(rng, tex) {
     }
     if (isl.kind === 'lighthouse') {
       const base = new THREE.Group();
-      const tower = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.4, 16, 12), whiteMat);
+      const towerMat = new THREE.MeshStandardMaterial({
+        map: T.lighthousePaint || null, color: T.lighthousePaint ? 0xffffff : 0xf8f4ec,
+        roughness: 0.7,
+      });
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.4, 16, 12), towerMat);
       tower.position.y = 8;
       base.add(tower);
       for (const by of [4, 11]) {
@@ -460,6 +671,29 @@ export function buildTerrain(rng, tex) {
       base.position.set(isl.x, topY - 0.5, isl.z);
       group.add(base);
       lighthouseTop = new THREE.Vector3(isl.x, topY + 18, isl.z);
+      // The keeper's cottages at the foot of the lighthouse.
+      group.add(buildHut(isl.x - 22, Math.max(0.4, heightAt(isl.x - 22, isl.z + 26)) - 0.2, isl.z + 26, 0.4));
+      group.add(buildHut(isl.x + 24, Math.max(0.4, heightAt(isl.x + 24, isl.z + 30)) - 0.2, isl.z + 30, -0.7));
+    }
+    if (isl.kind === 'cliff') {
+      // Jagged rock spires on the cliff islands, textured with the
+      // vertical-striation cliff rock, so the canyon walls read as rock.
+      const cliffMat = new THREE.MeshStandardMaterial({
+        map: T.cliffRock || null, color: T.cliffRock ? 0xffffff : PALETTE.rock,
+        roughness: 1,
+      });
+      for (let i = 0; i < 3; i += 1) {
+        const a = rng.range(0, Math.PI * 2);
+        const rr = isl.r * rng.range(0.3, 0.6);
+        const sx = isl.x + Math.cos(a) * rr;
+        const sz = isl.z + Math.sin(a) * rr;
+        const spire = new THREE.Mesh(new THREE.ConeGeometry(
+          rng.range(9, 16), rng.range(38, 62), 7), cliffMat);
+        spire.position.set(sx, Math.max(0.4, heightAt(sx, sz)) + 16, sz);
+        spire.rotation.z = rng.range(-0.12, 0.12);
+        spire.castShadow = true;
+        group.add(spire);
+      }
     }
     if (isl.kind === 'runway-water') {
       const strip = new THREE.Mesh(new THREE.BoxGeometry(16, 0.7, 170), stripMat);
@@ -479,13 +713,11 @@ export function buildTerrain(rng, tex) {
       strip.position.set(isl.x, topY + 0.4, isl.z);
       group.add(strip);
       if (T.runway) {
-        const rwTex = T.runway.clone();
-        rwTex.needsUpdate = true;
-        rwTex.center.set(0.5, 0.5);
-        rwTex.rotation = Math.PI / 2;
+        T.runway.center.set(0.5, 0.5);
+        T.runway.rotation = Math.PI / 2;
         const rwTop = new THREE.Mesh(
           new THREE.PlaneGeometry(18, 130),
-          new THREE.MeshStandardMaterial({ map: rwTex, roughness: 0.9 }),
+          new THREE.MeshStandardMaterial({ map: T.runway, roughness: 0.9 }),
         );
         rwTop.rotation.x = -Math.PI / 2;
         rwTop.position.set(isl.x, topY + 1.05, isl.z);
@@ -493,7 +725,11 @@ export function buildTerrain(rng, tex) {
       }
     }
     if (isl.kind === 'memorial') {
-      const stone = new THREE.Mesh(new THREE.BoxGeometry(6, 9, 2), whiteMat);
+      const stoneMat = new THREE.MeshStandardMaterial({
+        map: T.memorialStone || null, color: T.memorialStone ? 0xffffff : 0xf8f4ec,
+        roughness: 0.55,
+      });
+      const stone = new THREE.Mesh(new THREE.BoxGeometry(6, 9, 2), stoneMat);
       stone.position.set(isl.x, topY + 4.5, isl.z);
       group.add(stone);
       const orb = new THREE.Mesh(new THREE.SphereGeometry(2.2, 12, 10),
@@ -513,14 +749,18 @@ export function buildTerrain(rng, tex) {
   const sailGeo = new THREE.PlaneGeometry(3, 4.4);
   const sailMat = new THREE.MeshPhongMaterial({ color: 0xfff3d6, side: THREE.DoubleSide, shininess: 10 });
   const wakeGeo = new THREE.CircleGeometry(3.2, 14);
-  const wakeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false });
+  const wakeMat = new THREE.MeshBasicMaterial({
+    map: T.seaSpray || null, color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false,
+  });
   const boatRoutes = [
     { cx: 0, cz: -400, r: 320, speed: 0.03, phase: 0 },
     { cx: -500, cz: -1200, r: 260, speed: -0.04, phase: 2 },
     { cx: 600, cz: -1900, r: 300, speed: 0.035, phase: 4 },
     { cx: 0, cz: -3200, r: 340, speed: -0.03, phase: 1 },
-    { cx: -380, cz: -2800, r: 260, speed: 0.04, phase: 3 },
+    { cx: -340, cz: -2800, r: 260, speed: 0.04, phase: 3 },
     { cx: 900, cz: -2600, r: 280, speed: -0.035, phase: 5 },
+    { cx: -1200, cz: -3200, r: 300, speed: 0.032, phase: 1.5 },
+    { cx: 300, cz: -4600, r: 320, speed: -0.028, phase: 4.8 },
   ];
   for (const route of boatRoutes) {
     const boat = new THREE.Group();
@@ -548,7 +788,7 @@ export function buildTerrain(rng, tex) {
   const birdCentres = [
     { x: 0, z: -600, r: 180, y: 130 }, { x: 420, z: -2300, r: 150, y: 150 },
     { x: -950, z: -2600, r: 170, y: 120 }, { x: 0, z: -4200, r: 200, y: 170 },
-    { x: -380, z: -2500, r: 220, y: 140 }, { x: -140, z: -5100, r: 160, y: 160 },
+    { x: -340, z: -2440, r: 220, y: 140 }, { x: -140, z: -5100, r: 160, y: 160 },
   ];
   for (let i = 0; i < 12; i += 1) {
     const c = birdCentres[i % birdCentres.length];
@@ -571,6 +811,8 @@ export function buildTerrain(rng, tex) {
     { cx: -200, cz: -1200, r: 500, y: 210, speed: 0.05, phase: 0 },
     { cx: 400, cz: -3200, r: 620, y: 260, speed: -0.04, phase: 2.5 },
     { cx: -700, cz: -4200, r: 540, y: 230, speed: 0.045, phase: 4.5 },
+    { cx: 200, cz: -600, r: 420, y: 190, speed: -0.055, phase: 1.2 },
+    { cx: -900, cz: -1800, r: 480, y: 280, speed: 0.038, phase: 5.5 },
   ];
   for (const route of trafficRoutes) {
     const t = new THREE.Group();
@@ -605,16 +847,41 @@ export function buildTerrain(rng, tex) {
     group.add(l);
     lanterns.push({ mesh: l, speed: rng.range(1.5, 3.5), baseY: l.position.y });
   }
+  // Fireworks over Kota Langit for the sunset finale: glowing star
+  // sprites that hang above the city and pulse, so the final mission
+  // ends under a small festival sky. Visible only at sunset.
+  const fireworks = [];
+  if (T.fireworkStar) {
+    const fwCols = [0xffb36b, 0xff6b8a, 0x9fe8ff, 0xffe9a0, 0xb79aff, 0x7dff9a];
+    for (let i = 0; i < 6; i += 1) {
+      const mat = new THREE.SpriteMaterial({
+        map: T.fireworkStar, color: fwCols[i % fwCols.length],
+        transparent: true, opacity: 0.9, depthWrite: false,
+        blending: THREE.AdditiveBlending, fog: false,
+      });
+      const s = new THREE.Sprite(mat);
+      const a = (i / 6) * Math.PI * 2 + 0.4;
+      s.position.set(-340 + Math.cos(a) * 170, 165 + (i % 3) * 28, -2440 + Math.sin(a) * 170);
+      s.scale.set(46, 46, 1);
+      s.visible = false;
+      group.add(s);
+      fireworks.push({ sprite: s, phase: i * 1.1, base: 46 });
+    }
+  }
   // Clouds: photographic billboards, not flat grey blobs. Each cloud is
   // a sprite with a soft procedural cloud texture, so it reads as a real
   // cloud from any angle and at any light. Three variants keep them from
   // looking cloned.
-  const cloudTexs = [T.cloud, T.cloudB, T.cloudC].filter(Boolean);
+  const cloudTexs = [T.cloud, T.cloudB, T.cloudC, T.cloudD, T.cloudE, T.cloudF].filter(Boolean);
   const cloudMats = cloudTexs.map((t) => new THREE.SpriteMaterial({
     map: t, transparent: true, opacity: 0.6, depthWrite: false, fog: true,
   }));
   const stormMat = new THREE.SpriteMaterial({
     map: T.stormCloud || null, color: T.stormCloud ? 0xffffff : 0x555566,
+    transparent: true, opacity: 0.85, depthWrite: false, fog: true,
+  });
+  const stormMat2 = new THREE.SpriteMaterial({
+    map: T.stormCloud2 || null, color: T.stormCloud2 ? 0xffffff : 0x555566,
     transparent: true, opacity: 0.85, depthWrite: false, fog: true,
   });
   const clouds = [];
@@ -632,7 +899,7 @@ export function buildTerrain(rng, tex) {
   }
   const stormClouds = [];
   for (let i = 0; i < 8; i += 1) {
-    stormClouds.push(makeCloud(stormMat, rng.range(-450, 450), rng.range(150, 230), rng.range(-2600, -1500), rng.range(1.1, 1.8)));
+    stormClouds.push(makeCloud(i % 2 ? stormMat2 : stormMat, rng.range(-450, 450), rng.range(150, 230), rng.range(-2600, -1500), rng.range(1.1, 1.8)));
   }
 
   let skyKey = 'day';
@@ -648,6 +915,7 @@ export function buildTerrain(rng, tex) {
     sun.material.color.setHex(s.sun);
     if (beam) beam.material.opacity = key === 'day' ? 0.08 : 0.22;
     for (const l of lanterns) l.mesh.visible = key === 'sunset';
+    for (const f of fireworks) f.sprite.visible = key === 'sunset';
     for (const m of cloudMats) m.color.setHex(key === 'day' ? 0xffffff : 0xffd9c4);
     return s;
   }
@@ -705,6 +973,11 @@ export function buildTerrain(rng, tex) {
         l.mesh.position.y += l.speed * dt;
         if (l.mesh.position.y > 110) l.mesh.position.y = 6;
         l.mesh.material.opacity = 0.75 + Math.sin(time * 2 + l.baseY) * 0.15;
+      }
+      for (const f of fireworks) {
+        const pulse = 0.75 + 0.25 * Math.sin(time * 2.2 + f.phase);
+        f.sprite.scale.set(f.base * pulse, f.base * pulse, 1);
+        f.sprite.material.opacity = 0.55 + 0.35 * pulse;
       }
     }
   }

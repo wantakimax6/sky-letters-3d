@@ -40,7 +40,7 @@ function buildRings(mission) {
   // over Kota Langit between the towers — a low pass through the city
   // is fast, but the buildings below are not forgiving.
   if (mission.id === 3 && rings[2]) {
-    rings[2] = { x: -380, y: 74, z: -2500, r: 20, done: false, fuel: false };
+    rings[2] = { x: -340, y: 74, z: -2440, r: 20, done: false, fuel: false };
   }
   // Green fuel rings on the long legs, flown after the golden rings.
   if (mission.id === 4) {

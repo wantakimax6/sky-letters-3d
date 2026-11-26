@@ -14,7 +14,7 @@ export function loadTextures() {
     const done = () => { if (!loaded) { loaded = true; resolve(); } };
     manager.onLoad = done;
     manager.onError = () => { /* a missing file falls back to flat colour */ };
-    setTimeout(done, 9000);
+    setTimeout(done, 20000); // 40 MB of file textures on a slow disk
   });
   function tex(file, opts = {}) {
     const t = loader.load(`assets/${file}`);
@@ -40,8 +40,34 @@ export function loadTextures() {
     jetWing: tex('jet_wing.jpg', { repeat: [1, 1] }),
     runway: tex('runway.jpg', { repeat: [1, 1] }),
     tarmac: tex('tarmac.jpg', { repeat: [4, 4] }),
+    // City-land pass: the painted city ground map (streets, plaza, park,
+    // market, airport) and its normal map, plus a full shelf of detail
+    // sets so the city, jet and islands never repeat one texture.
+    cityLand: tex('city_land.jpg'),
+    cityLandNormal: tex('city_land_normal.jpg', { srgb: false }),
+    cityDetail: tex('city_detail.jpg', { repeat: [1, 1] }),
+    terrainNormal: tex('terrain_normal.jpg', { srgb: false }),
+    grass2: tex('grass2.jpg', { repeat: [1, 1] }),
+    rock2: tex('rock2.jpg', { repeat: [1, 1] }),
+    tarmac2: tex('tarmac2.jpg', { repeat: [4, 4] }),
+    rooftop: tex('rooftop.jpg', { repeat: [1, 1] }),
+    marketAwning: tex('market_awning.jpg', { repeat: [1, 1] }),
+    plazaStone: tex('plaza_stone.jpg', { repeat: [1, 1] }),
+    memorialStone: tex('memorial_stone.jpg', { repeat: [1, 1] }),
+    lighthousePaint: tex('lighthouse_paint.jpg', { repeat: [1, 1] }),
+    volcanoDetail: tex('volcano_detail.jpg', { repeat: [1, 1] }),
+    parkFoliage: tex('park_foliage.jpg', { repeat: [1, 1] }),
+    seaSpray: tex('sea_spray.jpg', { repeat: [1, 1] }),
+    concrete: tex('concrete.jpg', { repeat: [1, 1] }),
+    waterFountain: tex('water_fountain.jpg', { repeat: [1, 1] }),
+    islandGrass: tex('island_grass.jpg', { repeat: [1, 1] }),
+    cliffRock: tex('cliff_rock.jpg', { repeat: [1, 1] }),
+    palmFrond: tex('palm_frond.jpg', { repeat: [1, 1] }),
+    jetDetail: tex('jet_detail.jpg', { repeat: [1, 1] }),
     facades: ['facade_a.jpg', 'facade_b.jpg', 'facade_c.jpg',
-      'facade_d.jpg', 'facade_e.jpg', 'facade_f.jpg'].map((f) => tex(f)),
+      'facade_d.jpg', 'facade_e.jpg', 'facade_f.jpg',
+      'facade_g.jpg', 'facade_h.jpg', 'facade_i.jpg',
+      'facade_j.jpg', 'facade_k.jpg', 'facade_l.jpg'].map((f) => tex(f)),
     sky: {
       day: tex('sky_day.jpg'),
       dusk: tex('sky_dusk.jpg'),
@@ -50,7 +76,12 @@ export function loadTextures() {
     cloud: tex('cloud.png'),
     cloudB: tex('cloud_b.png'),
     cloudC: tex('cloud_c.png'),
+    cloudD: tex('cloud_d.png'),
+    cloudE: tex('cloud_e.png'),
+    cloudF: tex('cloud_f.png'),
     stormCloud: tex('storm_cloud.png'),
+    stormCloud2: tex('storm_cloud2.png'),
+    fireworkStar: tex('firework_star.png'),
   };
   // A small sky-gradient cubemap for standard-material reflections, so
   // the jet metal and canopy have something photographic to reflect.

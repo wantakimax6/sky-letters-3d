@@ -24,8 +24,8 @@ export const ISLANDS = [
   { id: 'coral', name: 'Coral Garden', x: 1000, z: -5000, r: 100, kind: 'lagoon', h: 10 },
   { id: 'drift', name: 'Driftwood Isle', x: -600, z: -4800, r: 85, kind: 'palm', h: 14 },
   { id: 'harbor', name: 'Harbor Rock', x: 300, z: -800, r: 70, kind: 'cliff', h: 40 },
-  { id: 'city', name: 'Kota Langit', x: -380, z: -2500, r: 240, kind: 'city', h: 16 },
-  { id: 'bridge', name: 'Bridge Isle', x: -60, z: -2320, r: 45, kind: 'palm', h: 10 },
+  { id: 'city', name: 'Kota Langit', x: -340, z: -2440, r: 300, kind: 'city', h: 24 },
+  { id: 'bridge', name: 'Bridge Isle', x: 120, z: -2260, r: 55, kind: 'palm', h: 10 },
 ];
 export function islandById(id) { return ISLANDS.find((i) => i.id === id); }
 // The city buildings, generated deterministically so the visible meshes
@@ -35,18 +35,19 @@ export function islandById(id) { return ISLANDS.find((i) => i.id === id); }
 function hash(n) { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
 export const CITY_BUILDINGS = (() => {
   const list = [];
-  const cx = -380;
-  const cz = -2500;
+  const cx = -340;
+  const cz = -2440;
   let n = 0;
   for (let gx = -3; gx <= 3; gx += 1) {
     for (let gz = -3; gz <= 3; gz += 1) {
       n += 1;
       if (gx === 0 && gz === 0) continue; // central plaza
+      if (gx <= -1 && gz <= -1) continue; // north-west quadrant is the city park
       const x = cx + gx * 58 + (hash(n) - 0.5) * 16;
       const z = cz + gz * 58 + (hash(n + 50) - 0.5) * 16;
       if (x > cx + 130) continue; // airport runway strip on the east edge
       const d = Math.hypot(x - cx, z - cz);
-      if (d > 195) continue;
+      if (d > 235) continue;
       const h = 12 + hash(n + 100) * 34;
       const w = 16 + hash(n + 200) * 10;
       const depth = 16 + hash(n + 300) * 10;
@@ -73,7 +74,16 @@ function profile(d, r, kind) {
   let h = Math.cos(t * Math.PI * 0.5);
   h *= h;
   if (kind === 'airstrip' && t < 0.35) h = 0.55;
-  if (kind === 'city' && t < 0.85) h = 0.45; // flat plateau for the city
+  // The city island is a raised plateau with a smooth falloff to the
+  // beach: flat land under the whole city (t < 0.68), then a gentle
+  // slope down to the sand rim, so the city sits ON land, never on water.
+  if (kind === 'city') {
+    if (t < 0.68) h = 0.55;
+    else {
+      const u = (t - 0.68) / 0.32;
+      h = 0.55 * (1 - u * u * (3 - 2 * u));
+    }
+  }
   if (kind === 'cliff') h = Math.pow(h, 0.7);
   if (kind === 'lagoon') h = Math.pow(h, 1.6) * 0.8;
   return h;

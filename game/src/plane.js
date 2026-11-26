@@ -17,7 +17,8 @@ export function buildPlane(tex) {
     metalness: 0.72, roughness: 0.42, envMap: env, envMapIntensity: 0.8,
   });
   const greyDark = new THREE.MeshStandardMaterial({
-    map: T.jetMetal || null, color: T.jetMetal ? 0x9aa0ab : 0x5a6474,
+    map: T.jetDetail || T.jetMetal || null,
+    color: T.jetDetail ? 0xd8dce2 : T.jetMetal ? 0x9aa0ab : 0x5a6474,
     metalness: 0.7, roughness: 0.5, envMap: env, envMapIntensity: 0.7,
   });
   const wingMat = new THREE.MeshStandardMaterial({

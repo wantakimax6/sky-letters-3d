@@ -13,7 +13,7 @@ import {
   createWorld, EVENT_RING, EVENT_FUEL, EVENT_DELIVERED, EVENT_CRASH,
   EVENT_ENEMY_DOWN, EVENT_HIT,
 } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, ACTION_RESTART, ACTION_MUTE, ACTION_SKILL_BOOST, ACTION_SKILL_ROLL, ACTION_SKILL_FLARE, ACTION_SKILL_GLIDE, ACTION_SKILL_CANNON, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_PAUSE, ACTION_RESTART, ACTION_MUTE, ACTION_SKILL_BOOST, ACTION_SKILL_ROLL, ACTION_SKILL_FLARE, ACTION_SKILL_GLIDE, ACTION_SKILL_CANNON, ACTION_MAP, createInput } from './input.js';
 import { createRenderer } from './render.js';
 import { createHud } from './hud.js';
 import { createAudio } from './audio.js';
@@ -30,6 +30,19 @@ const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() 
 const canvas = document.getElementById('game');
 const status = document.getElementById('status');
 const shotInfoEl = document.getElementById('shotinfo');
+
+// Screen layout: touch devices with a compact viewport get the virtual
+// gamepad and the reflowed HUD (see index.html). The compact class also
+// flips the fuel bar horizontal; both update on resize.
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+  || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+function applyLayoutClasses() {
+  document.body.classList.toggle('touch', isTouch);
+  document.body.classList.toggle('compact', window.innerWidth <= 900);
+}
+applyLayoutClasses();
+window.addEventListener('resize', applyLayoutClasses);
+window.__isTouch = isTouch;
 const world = createWorld(createRandom(seed));
 const renderer = createRenderer(canvas, createRandom(seed + 7));
 const hud = createHud(world);
@@ -159,9 +172,31 @@ function stepGame() {
   if (world.state.mode === 'complete') endComplete();
 }
 
+function toggleMap() {
+  const overlay = document.getElementById('map-overlay');
+  if (!overlay) return;
+  overlay.classList.toggle('hidden');
+  announce(overlay.classList.contains('hidden') ? 'Map closed.' : 'Archipelago map. Press N or Close to return to flying.');
+}
+document.getElementById('map-open-btn').addEventListener('click', toggleMap);
+document.getElementById('map-close-btn').addEventListener('click', toggleMap);
+document.getElementById('map-overlay').addEventListener('click', (event) => {
+  if (event.target.id === 'map-overlay') toggleMap();
+});
+// On touch screens the dialogue panel is tapped to continue.
+document.getElementById('dialogue').addEventListener('click', () => {
+  if (screen === 'play' && world.state.dialogue) {
+    audio.click();
+    audio.blip();
+    world.advanceDialogue();
+    renderer.setSky(world.mission().sky);
+  }
+});
+
 function handleActions() {
   const actions = input.takeActions();
   if (actions & ACTION_MUTE) audio.setMuted(!audio.isMuted());
+  if (actions & ACTION_MAP) toggleMap();
   // Pilot skills: fire one per press, with its sound and effect.
   if (screen === 'play' && world.state.mode === 'fly') {
     const skillMap = [
@@ -208,6 +243,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, MAX_FRAME);
   last = now;
+  input.update();
   handleActions();
   if (screen === 'play') {
     accumulator += dt;
@@ -270,7 +306,7 @@ async function runShot(name) {
   renderer.setRain(staged.rain);
   screen = 'play';
   showOverlay(null);
-  // The 15 MB of file textures load after the first frames: wait for
+  // The 40 MB of file textures load after the first frames: wait for
   // them (or the timeout) before painting, or a screenshot would catch
   // the flat fallback materials instead of the textured scene.
   if (renderer.ready) await renderer.ready;

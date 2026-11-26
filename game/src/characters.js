@@ -104,5 +104,5 @@ export function drawPortrait(ctx, who, x, y, size, mood) {
 }
 export const CHARACTER_NAMES = {
   nara: 'Nara — Pilot, 19', sari: 'Grandma Sari', mika: 'Mika, 12',
-  budi: 'Pak Budi', agus: 'Pak Agus',
+  budi: 'Mr. Budi', agus: 'Mr. Agus',
 };

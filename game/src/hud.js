@@ -5,8 +5,14 @@
 // Bottom-right: Pipit condition. Bottom-centre: the dialogue panel,
 // deliberately narrow so it never covers the horizon or condition gauges.
 // Above it, the four pilot skills with their keys and cooldown bars.
+// Bottom-right above the condition panel: a heading-up radar. Top-right
+// below the objective: a minimap of the local archipelago; N (or the
+// FULL MAP button) opens the big archipelago map overlay.
 import { drawPortrait, CHARACTER_NAMES } from './characters.js';
 import { SKILLS } from './config.js';
+import { ISLANDS } from './islands.js';
+
+const MAP_BOUNDS = { x0: -1450, x1: 1450, z0: -5300, z1: 250 };
 
 function headingDeg(heading) {
   return Math.round((((heading * 180) / Math.PI) % 360) + 360) % 360;
@@ -29,6 +35,16 @@ export function createHud(world) {
     skillFlash: $('hud-skill-flash'),
     lock: $('hud-lock'),
     enemies: $('hud-enemies'),
+    radar: $('hud-radar'),
+    minimap: $('hud-minimap'),
+    mapBig: $('map-big'),
+    mapOverlay: $('map-overlay'),
+    vpadThr: $('vpad-thr-fill'),
+    vpadSkills: {
+      boost: $('vpad-skill-boost'), roll: $('vpad-skill-roll'),
+      flare: $('vpad-skill-flare'), glide: $('vpad-skill-glide'),
+      cannon: $('vpad-skill-cannon'),
+    },
     skills: {
       boost: { box: $('skill-boost'), fill: $('skill-boost-fill') },
       roll: { box: $('skill-roll'), fill: $('skill-roll-fill') },
@@ -40,6 +56,127 @@ export function createHud(world) {
   const compassCtx = el.compass.getContext('2d');
   const horizonCtx = el.horizon.getContext('2d');
   const portraitCtx = el.dlgPortrait.getContext('2d');
+  const radarCtx = el.radar ? el.radar.getContext('2d') : null;
+  const minimapCtx = el.minimap ? el.minimap.getContext('2d') : null;
+  const mapBigCtx = el.mapBig ? el.mapBig.getContext('2d') : null;
+
+  // Heading-up radar: the player is the white triangle in the middle,
+  // always pointing up; the world turns under it. Range 700 m.
+  function drawRadar(state) {
+    if (!radarCtx) return;
+    const s = el.radar.width;
+    const ctx = radarCtx;
+    const cx = s / 2, cy = s / 2, R = 58, range = 700;
+    const p = state.plane;
+    ctx.clearRect(0, 0, s, s);
+    ctx.fillStyle = 'rgba(8, 24, 20, 0.6)';
+    ctx.beginPath(); ctx.arc(cx, cy, R + 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R / 2, 0, Math.PI * 2); ctx.stroke();
+    const k = R / range;
+    const cos = Math.cos(p.heading), sin = Math.sin(p.heading);
+    const proj = (x, z) => {
+      const dx = x - p.x, dz = z - p.z;
+      return [cx + (dx * cos + dz * sin) * k, cy - (dx * sin - dz * cos) * k];
+    };
+    for (const isl of ISLANDS) {
+      const [bx, by] = proj(isl.x, isl.z);
+      if (Math.hypot(bx - cx, by - cy) > R) continue;
+      ctx.fillStyle = isl.id === 'city' ? '#ffc93c' : 'rgba(120, 220, 130, 0.85)';
+      ctx.beginPath(); ctx.arc(bx, by, isl.id === 'city' ? 3.5 : 2, 0, Math.PI * 2); ctx.fill();
+    }
+    const t = world.nextTarget();
+    const [tx, ty] = proj(t.x, t.z);
+    const td = Math.hypot(tx - cx, ty - cy);
+    const tcx = td > R ? cx + (tx - cx) / td * (R - 4) : tx;
+    const tcy = td > R ? cy + (ty - cy) / td * (R - 4) : ty;
+    ctx.fillStyle = '#ffd94d';
+    ctx.save(); ctx.translate(tcx, tcy); ctx.rotate(Math.PI / 4); ctx.fillRect(-3, -3, 6, 6); ctx.restore();
+    for (const e of (state.enemies || [])) {
+      if (!e.active) continue;
+      const [ex, ey] = proj(e.x, e.z);
+      if (Math.hypot(ex - cx, ey - cy) > R) continue;
+      ctx.fillStyle = '#ff5a4d';
+      ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#ffd94d';
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('N', cx - Math.sin(p.heading) * (R + 2), cy - Math.cos(p.heading) * (R + 2));
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx + 5, cy + 5); ctx.lineTo(cx - 5, cy + 5); ctx.closePath(); ctx.fill();
+  }
+
+  // Archipelago map, north-up. 'mini' is a local 2400 x 1800 m window
+  // around the player; 'big' is the whole archipelago with labels.
+  function drawMap(ctx, w, h, state, mode) {
+    if (!ctx) return;
+    const p = state.plane;
+    let x0, x1, z0, z1;
+    if (mode === 'mini') { x0 = p.x - 1200; x1 = p.x + 1200; z0 = p.z - 900; z1 = p.z + 900; }
+    else { x0 = MAP_BOUNDS.x0; x1 = MAP_BOUNDS.x1; z0 = MAP_BOUNDS.z0; z1 = MAP_BOUNDS.z1; }
+    const kx = w / (x1 - x0), kz = h / (z1 - z0);
+    const sx = (x) => (x - x0) * kx;
+    const sz = (z) => (z - z0) * kz;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = mode === 'mini' ? '#14586b' : '#123f52';
+    ctx.fillRect(0, 0, w, h);
+    for (const isl of ISLANDS) {
+      const cx = sx(isl.x), cy = sz(isl.z);
+      const rx = Math.max(1.5, isl.r * kx), ry = Math.max(1.5, isl.r * kz);
+      if (cx < -rx || cx > w + rx || cy < -ry || cy > h + ry) continue;
+      ctx.fillStyle = isl.id === 'city' ? '#c9a35a' : '#4f9e57';
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    const rings = state.rings || [];
+    for (let i = state.ringIndex || 0; i < rings.length; i += 1) {
+      const r = rings[i];
+      const cx = sx(r.x), cy = sz(r.z);
+      if (cx < 0 || cx > w || cy < 0 || cy > h) continue;
+      ctx.fillStyle = '#ffd94d';
+      ctx.beginPath(); ctx.arc(cx, cy, mode === 'mini' ? 2.5 : 3, 0, Math.PI * 2); ctx.fill();
+    }
+    const t = world.nextTarget();
+    let tx = sx(t.x), ty = sz(t.z);
+    if (mode === 'mini') { tx = clamp(tx, 8, w - 8); ty = clamp(ty, 8, h - 8); }
+    ctx.strokeStyle = '#ffd94d';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#ffd94d';
+    ctx.beginPath(); ctx.arc(tx, ty, 2.5, 0, Math.PI * 2); ctx.fill();
+    for (const e of (state.enemies || [])) {
+      if (!e.active) continue;
+      const ex = sx(e.x), ey = sz(e.z);
+      if (ex < 0 || ex > w || ey < 0 || ey > h) continue;
+      ctx.fillStyle = '#ff5a4d';
+      ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    const px = sx(p.x), py = sz(p.z);
+    ctx.fillStyle = '#fff';
+    ctx.save(); ctx.translate(px, py); ctx.rotate(p.heading);
+    ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 6); ctx.lineTo(-5, 6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    if (mode === 'big') {
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      const named = ['city', 'home', 'lighthouse', 'memorial', 'mountain', 'volcano', 'senja'];
+      for (const isl of ISLANDS) {
+        if (!named.includes(isl.id)) continue;
+        const cx = sx(isl.x), cy = sz(isl.z);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillText(isl.name, cx + 7, cy - 5);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(isl.name, cx + 6, cy - 6);
+      }
+      ctx.fillStyle = '#ffd94d';
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.fillText('Next: ' + t.label, Math.max(6, Math.min(w - 180, tx + 10)), Math.max(16, ty - 10));
+    }
+  }
 
   function drawCompass(heading) {
     const w = el.compass.width;
@@ -122,9 +259,22 @@ export function createHud(world) {
     el.hdg.textContent = `${String(headingDeg(p.heading)).padStart(3, '0')}°`;
     drawCompass(p.heading);
     drawHorizon(p.pitch, p.bank);
+    drawRadar(state);
+    drawMap(minimapCtx, el.minimap.width, el.minimap.height, state, 'mini');
+    if (el.mapOverlay && !el.mapOverlay.classList.contains('hidden')) {
+      drawMap(mapBigCtx, el.mapBig.width, el.mapBig.height, state, 'big');
+    }
     el.thr.style.height = `${Math.round(p.throttle * 100)}%`;
     el.thrPct.textContent = `${Math.round(p.throttle * 100)}%`;
-    el.fuel.style.height = `${Math.round(state.fuel)}%`;
+    if (el.vpadThr) el.vpadThr.style.height = `${Math.round(p.throttle * 100)}%`;
+    // On compact screens the fuel bar is horizontal under the objective.
+    if (document.body.classList.contains('compact')) {
+      el.fuel.style.width = `${Math.round(state.fuel)}%`;
+      el.fuel.style.height = '100%';
+    } else {
+      el.fuel.style.height = `${Math.round(state.fuel)}%`;
+      el.fuel.style.width = '';
+    }
     el.fuelPct.textContent = `${Math.round(state.fuel)}%`;
     el.fuel.style.background = state.fuel < 25 ? '#ff5a4d' : '#39d97e';
     el.objTitle.textContent = `LETTER ${m.id} OF 5 — ${m.name}`;
@@ -136,7 +286,8 @@ export function createHud(world) {
     el.cond.style.background = state.damage > 60 ? '#ff5a4d' : '#39d97e';
     el.score.textContent = `Score ${state.score}`;
     // Pilot skills: cooldown bars fill as the skill recharges; a firing
-    // skill shows gold, a cooling one orange, a ready one green.
+    // skill shows gold, a cooling one orange, a ready one green. The
+    // virtual pad buttons mirror the same state.
     for (const def of SKILLS) {
       const sk = state.skills[def.id];
       const ui = el.skills[def.id];
@@ -145,6 +296,11 @@ export function createHud(world) {
       ui.fill.style.width = `${Math.round(Math.max(0, Math.min(1, ready)) * 100)}%`;
       ui.box.classList.toggle('active', sk.active > 0);
       ui.box.classList.toggle('cooling', sk.active <= 0 && sk.cd > 0);
+      const vbtn = el.vpadSkills[def.id];
+      if (vbtn) {
+        vbtn.classList.toggle('active', sk.active > 0);
+        vbtn.classList.toggle('cooling', sk.active <= 0 && sk.cd > 0);
+      }
     }
     if (state.skillFlash && state.time < state.skillFlash.until) {
       el.skillFlash.textContent = state.skillFlash.text;

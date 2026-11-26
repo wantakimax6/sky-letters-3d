@@ -24,7 +24,7 @@ and the last one is her own.
 - **Nara** — 19, pilot of Pipit, taught to fly by her mother.
 - **Grandma Sari** — waits at Pulau Senja for a letter from her granddaughter.
 - **Mika** — 12, birthday at the lighthouse.
-- **Pak Budi and Pak Agus** — two fisherman brothers who have not spoken
+- **Mr. Budi and Mr. Agus** — two fisherman brothers who have not spoken
   in years, until one apology letter crosses the canyon between them.
 - **Nara's mother** — gone, but still flying with her daughter.
 
@@ -36,11 +36,14 @@ The archipelago is big: **19 islands** over about 2.8 km east-west and
 Isle (a smoking volcano), Canyon West and East, Blue Lagoon and Coral
 Garden, Kampung Nelayan fishing village, Palm Grove, Sunset Cay,
 Driftwood Isle, Turtle Cay, Eagle Cliff and Harbor Rock, plus **Kota
-Langit**, a coastal city of dozens of buildings with lit windows, streets,
-a bridge to Bridge Isle, a harbour with boats, and an airport with a lit
-runway and control tower. The sky is busy too: civilian airliners on
-fixed routes, boats with wakes, circling birds, drifting clouds, chimney
-and volcano smoke, and floating lanterns at sunset. Rings and fuel rings
+Langit**, a proper island city: a raised landmass with beaches, a
+painted ground map of streets, a central plaza with a monument, a park
+with leafy trees and a fountain, a lit night-market street, dozens of
+buildings with lit windows standing on the ground, a bridge to Bridge
+Isle, a harbour with boats, and an airport with a lit runway and control
+tower. The sky is busy too: civilian airliners on fixed routes, boats
+with wakes, circling birds, drifting clouds, chimney and volcano smoke,
+fireworks over the city at sunset, and floating lanterns at sunset. Rings and fuel rings
 are spread across the whole map, so every letter is a real journey.
 
 ## The five missions
@@ -50,7 +53,7 @@ are spread across the whole map, so every letter is a real journey.
 2. **Birthday at the Lighthouse** — a timed delivery to Mika at the
    lighthouse island, with a fuel ring on the long leg.
 3. **Two Brothers** — a low canyon run through six rings and storm clouds, carrying an
-   apology letter from Pak Budi to Pak Agus — then a low fly-through of
+   apology letter from Mr. Budi to Mr. Agus — then a low fly-through of
    Kota Langit, past the city towers, while rogue drones patrol the route.
    Shoot them down with the Lock-On Cannon.
 4. **A Love Letter, Unsent for Ten Years** — dusk rain, fuel management,
@@ -77,6 +80,20 @@ hitting a building damages Pipit.
   an enemy lock-on warning, a hostiles count, plus the five pilot skills with their keys and cooldown bars.
 - **Controls** — Arrow keys / WASD pitch and bank, Shift / Ctrl throttle,
   Space brake, mouse steering (optional), P pause, M mute, R restart,
+  N opens the archipelago map (the minimap is always on, top right).
+  Skills: 1 Sky Boost, 2 / Q Barrel Roll, 3 / F Flare Burst,
+  4 / E Feather Glide, 5 / C Lock-On Cannon.
+- **Radar + map** — a heading-up radar (bottom right) shows the next
+  target in gold, enemy drones in red, Kota Langit in amber and the
+  islands in green, with a north tick. The minimap (top right) shows
+  the local archipelago with the player, the remaining rings, the
+  target and the drones; N or FULL MAP opens the big labelled map.
+- **Touch + gamepad** — on phones the virtual gamepad appears: an
+  analog stick (bottom left) for pitch and roll, ▲ / ▼ throttle
+  buttons, five round skill buttons, and pause / mute / map buttons.
+  A physical gamepad works too (Gamepad API): left stick steers,
+  D-pad throttles, RT brakes, A confirms, Start pauses, X / Y / LB /
+  RB / LT fire the five skills, Back mutes.
   Enter start and continue.
 - **Pilot skills** — 1 **Sky Boost** (turbo burst, costs a little fuel,
   speed lines + afterburner glow), 2 / Q **Barrel Roll** (full roll, brief
@@ -99,7 +116,7 @@ Real renders of the game's own code, staged with `?shot=…&seed=1`:
 
 1. `1-cover.jpg` — Letter 1, golden ring and water runway ahead, Sky Boost firing (speed lines + engine glow).
 2. `2-storm.jpg` — Letter 3, canyon storm, enemy drone locked in the
-   cannon sight, Kota Langit and its bridge ahead, Pak Agus's reply.
+   cannon sight, Kota Langit and its bridge ahead, Mr. Agus's reply.
 3. `3-landing.jpg` — Letter 4, dusk rain approach, fuel ring, enemy
    drone locked, city lights below.
 4. `4-sunset.jpg` — Letter 5, sunset rings over the sea, enemy drone
@@ -133,8 +150,9 @@ game/
     audio.js       WebAudio synthesis (engine, wind, chimes, melody)
     world.js       flight physics and mission rules (no browser, no THREE)
     terrain.js     sky dome, sea, islands, palms, volcano, lighthouse,
-                   runway, airstrip, memorial, clouds, the city of
-                   Kota Langit, harbour, bridge, airliners, lanterns
+                   runway, airstrip, memorial, clouds, the island city of
+                   Kota Langit (land, park, plaza, night market, harbour,
+                   bridge, airport), airliners, lanterns, fireworks
     enemies.js     rogue drones, their tracers, lock-on diamond
     plane.js       Pipit, the fighter jet, built from Three.js geometry
                    (pointed nose, bubble canopy, swept wings, twin tail
@@ -144,15 +162,21 @@ game/
     textures.js    procedural texture loading (see below)
     render.js      Three.js scene, lighting, chase camera, rings, beacon
     hud.js         DOM HUD and instruments
-    input.js       keyboard and mouse input
+    input.js       keyboard, mouse, touch virtual pad and gamepad input
     shots.js       deterministic staged screenshots (?shot=…)
     main.js        game loop, screens, autoplay, shot mode
   assets/          original procedural textures (generated in-session with
-                   a Python script: periodic-noise terrain/rock/sand/sea,
-                   sky-dome gradients with painted cloud bands, six city
-                   facades with lit windows, runway asphalt, jet livery
-                   with panel lines, rivets, weathering and PIPIT 07
-                   squadron markings, cloud sprites, palm bark, basalt)
+                   a Python script — see tools/generate_textures.py:
+                   periodic-noise terrain/rock/sand/sea, a painted 4096 px
+                   city ground map with streets, plaza, park, market and
+                   airport, sky-dome gradients with painted cloud bands,
+                   twelve city facades with lit windows, runway asphalt,
+                   jet livery with panel lines, rivets, weathering and
+                   PIPIT 07 squadron markings, cloud sprites, palm bark,
+                   basalt, rooftop, market awning, plaza and memorial
+                   stone, lighthouse paint, volcano rock, park foliage,
+                   fountain water, cliff rock, firework stars — about
+                   40 MB in all, inside the 48 MB game limit)
   vendor/
     three.min.js   Three.js r128, vendored (not source)
 screenshots/      the four staged screenshots above
@@ -169,7 +193,8 @@ texture plus a scrolling wave normal map for sun glitter (no glare beam),
 the islands use a 4096 px detail bump map over vertex-colour zoning
 (sand on shores, grass on flats, rock on slopes), and the clouds are
 textured billboards. Rain falls as visible vertical streaks, and the
-sunset finale is lit by 24 floating lanterns over the sea.
+sunset finale is lit by 24 floating lanterns over the sea and fireworks
+bursting over Kota Langit.
 
 ## License
 
