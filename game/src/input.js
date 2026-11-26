@@ -6,6 +6,17 @@ export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_RESTART = 4;
 export const ACTION_MUTE = 8;
+export const ACTION_SKILL_BOOST = 16;
+export const ACTION_SKILL_ROLL = 32;
+export const ACTION_SKILL_FLARE = 64;
+export const ACTION_SKILL_GLIDE = 128;
+
+const SKILL_KEYS = {
+  Digit1: ACTION_SKILL_BOOST,
+  Digit2: ACTION_SKILL_ROLL, KeyQ: ACTION_SKILL_ROLL,
+  Digit3: ACTION_SKILL_FLARE, KeyF: ACTION_SKILL_FLARE,
+  Digit4: ACTION_SKILL_GLIDE, KeyE: ACTION_SKILL_GLIDE,
+};
 
 const PITCH_UP = new Set(['ArrowUp', 'KeyI']);
 const PITCH_DOWN = new Set(['ArrowDown', 'KeyK']);
@@ -29,6 +40,7 @@ export function createInput(canvas) {
     else if (PAUSE.has(event.code)) { if (!event.repeat) actions |= ACTION_PAUSE; }
     else if (RESTART.has(event.code)) { if (!event.repeat) actions |= ACTION_RESTART; }
     else if (MUTE.has(event.code)) { if (!event.repeat) actions |= ACTION_MUTE; }
+    else if (SKILL_KEYS[event.code]) { if (!event.repeat) actions |= SKILL_KEYS[event.code]; }
     else if (event.code === 'Space') { held.add('Space'); }
     else held.add(event.code);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();

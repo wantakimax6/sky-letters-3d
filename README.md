@@ -30,18 +30,27 @@ and the last one is her own.
 Each mission opens with a short dialogue and a hand-drawn anime portrait
 (canvas art, drawn in code) of the person the letter is for.
 
+The archipelago is big: **19 islands** over about 2.8 km east-west and
+5.5 km north-south — Pulau Senja, Lighthouse Island, Mount Api, Ember
+Isle (a smoking volcano), Canyon West and East, Blue Lagoon and Coral
+Garden, Kampung Nelayan fishing village, Palm Grove, Sunset Cay,
+Driftwood Isle, Turtle Cay, Eagle Cliff and Harbor Rock, plus beaches,
+palm groves, lit village windows, boats with wakes, circling birds and
+drifting clouds. Rings and fuel rings are spread across the whole map,
+so every letter is a real journey.
+
 ## The five missions
 
-1. **For Grandma Sari** — fly three golden rings, then land on the water
+1. **For Grandma Sari** — fly five golden rings, then land on the water
    runway at Pulau Senja.
 2. **Birthday at the Lighthouse** — a timed delivery to Mika at the
-   lighthouse island.
-3. **Two Brothers** — a low canyon run through storm clouds, carrying an
+   lighthouse island, with a fuel ring on the long leg.
+3. **Two Brothers** — a low canyon run through six rings and storm clouds, carrying an
    apology letter from Pak Budi to Pak Agus.
 4. **A Love Letter, Unsent for Ten Years** — dusk rain, fuel management,
-   green fuel rings, and a landing on the mountain airstrip.
+   four green fuel rings, and a landing on the mountain airstrip.
 5. **The Last Letter** — Nara's letter to her late mother: a sunset
-   flight through rings arcing over the sea. *Every letter finds its sky.*
+   flight through seven rings arcing over the sea. *Every letter finds its sky.*
 
 ## Flight
 
@@ -53,18 +62,30 @@ the letter and opens the next one.
 
 - **HUD** — altitude (ft), speed (kt), heading with a compass strip,
   throttle and fuel gauges, artificial horizon, objective and distance,
-  letters delivered, hearts, and Pipit's condition, with a stall warning.
+  letters delivered, hearts, and Pipit's condition, with a stall warning,
+  plus the four pilot skills with their keys and cooldown bars.
 - **Controls** — Arrow keys / WASD pitch and bank, Shift / Ctrl throttle,
   Space brake, mouse steering (optional), P pause, M mute, R restart,
   Enter start and continue.
-- **Sound** — WebAudio synthesis only: engine hum, wind, ring chimes,
-  and a short delivery melody. No audio files.
+- **Pilot skills** — 1 **Sky Boost** (turbo burst, costs a little fuel,
+  speed lines + engine glow), 2 / Q **Barrel Roll** (full roll, brief
+  protection from storm clouds), 3 / F **Flare Burst** (bright flare
+  that clears the storm ahead), 4 / E **Feather Glide** (slow descent
+  and steady wings for a gentle landing). Each has a cooldown shown in
+  the HUD.
+- **Sound** — rich layered WebAudio synthesis only: engine hum that
+  follows the throttle, wind that rises with speed, rain patter in the
+  dusk mission, waves and birds at low altitude, a four-note ring
+  arpeggio, a warm delivery fanfare, dialogue blips, a stall alarm, a
+  splash on water landings and a thud on crashes, and a sound for every
+  skill. Sound starts after you press Start; M mutes everything.
+  No audio files.
 
 ## Screenshots
 
 Real renders of the game's own code, staged with `?shot=…&seed=1`:
 
-1. `1-cover.jpg` — Letter 1, golden ring and water runway ahead.
+1. `1-cover.jpg` — Letter 1, golden ring and water runway ahead, Sky Boost firing (speed lines + engine glow).
 2. `2-storm.jpg` — Letter 3, canyon storm, Pak Agus's reply.
 3. `3-landing.jpg` — Letter 4, dusk rain approach, fuel ring.
 4. `4-sunset.jpg` — Letter 5, sunset rings over the sea.

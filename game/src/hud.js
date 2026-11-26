@@ -4,7 +4,9 @@
 // Sides: throttle and fuel bars. Bottom-left: artificial horizon.
 // Bottom-right: Pipit condition. Bottom-centre: the dialogue panel,
 // deliberately narrow so it never covers the horizon or condition gauges.
+// Above it, the four pilot skills with their keys and cooldown bars.
 import { drawPortrait, CHARACTER_NAMES } from './characters.js';
+import { SKILLS } from './config.js';
 
 function headingDeg(heading) {
   return Math.round((((heading * 180) / Math.PI) % 360) + 360) % 360;
@@ -24,6 +26,13 @@ export function createHud(world) {
     timer: $('hud-timer'),
     dialogue: $('dialogue'), dlgPortrait: $('dlg-portrait'),
     dlgName: $('dlg-name'), dlgText: $('dlg-text'),
+    skillFlash: $('hud-skill-flash'),
+    skills: {
+      boost: { box: $('skill-boost'), fill: $('skill-boost-fill') },
+      roll: { box: $('skill-roll'), fill: $('skill-roll-fill') },
+      flare: { box: $('skill-flare'), fill: $('skill-flare-fill') },
+      glide: { box: $('skill-glide'), fill: $('skill-glide-fill') },
+    },
   };
   const compassCtx = el.compass.getContext('2d');
   const horizonCtx = el.horizon.getContext('2d');
@@ -123,6 +132,23 @@ export function createHud(world) {
     el.cond.style.width = `${Math.max(0, 100 - state.damage)}%`;
     el.cond.style.background = state.damage > 60 ? '#ff5a4d' : '#39d97e';
     el.score.textContent = `Score ${state.score}`;
+    // Pilot skills: cooldown bars fill as the skill recharges; a firing
+    // skill shows gold, a cooling one orange, a ready one green.
+    for (const def of SKILLS) {
+      const sk = state.skills[def.id];
+      const ui = el.skills[def.id];
+      if (!sk || !ui) continue;
+      const ready = sk.active > 0 ? 1 : 1 - sk.cd / def.cooldown;
+      ui.fill.style.width = `${Math.round(Math.max(0, Math.min(1, ready)) * 100)}%`;
+      ui.box.classList.toggle('active', sk.active > 0);
+      ui.box.classList.toggle('cooling', sk.active <= 0 && sk.cd > 0);
+    }
+    if (state.skillFlash && state.time < state.skillFlash.until) {
+      el.skillFlash.textContent = state.skillFlash.text;
+      el.skillFlash.classList.remove('hidden');
+    } else {
+      el.skillFlash.classList.add('hidden');
+    }
     if (m.timeLimit > 0 && state.mode === 'fly') {
       el.timer.textContent = `Time left ${Math.max(0, Math.ceil(m.timeLimit - state.missionTime))} s`;
       el.timer.classList.remove('hidden');

@@ -41,4 +41,12 @@ export const MISSION_NAMES = [
   'For Grandma Sari', 'Birthday at the Lighthouse', 'Two Brothers',
   'A Love Letter, Unsent for Ten Years', 'The Last Letter',
 ];
+// Pilot skills: name, key, cooldown (s) and active duration (s). Shown in
+// the HUD with a cooldown bar; tuned so no mission can be trivialised.
+export const SKILLS = [
+  { id: 'boost', name: 'Sky Boost', key: '1', cooldown: 8, duration: 2.2, desc: 'Turbo burst — costs a little fuel' },
+  { id: 'roll', name: 'Barrel Roll', key: '2 / Q', cooldown: 6, duration: 0.9, desc: 'Full roll — dodges storms, brief protection' },
+  { id: 'flare', name: 'Flare Burst', key: '3 / F', cooldown: 10, duration: 1.2, desc: 'Bright flare — clears the storm ahead' },
+  { id: 'glide', name: 'Feather Glide', key: '4 / E', cooldown: 9, duration: 4, desc: 'Slow descent, steady wings for a gentle landing' },
+];
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';

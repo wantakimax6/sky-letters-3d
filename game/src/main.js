@@ -12,12 +12,12 @@ import { createRandom } from './random.js';
 import {
   createWorld, EVENT_RING, EVENT_FUEL, EVENT_DELIVERED, EVENT_CRASH,
 } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, ACTION_RESTART, ACTION_MUTE, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_PAUSE, ACTION_RESTART, ACTION_MUTE, ACTION_SKILL_BOOST, ACTION_SKILL_ROLL, ACTION_SKILL_FLARE, ACTION_SKILL_GLIDE, createInput } from './input.js';
 import { createRenderer } from './render.js';
 import { createHud } from './hud.js';
 import { createAudio } from './audio.js';
 import { stageShot } from './shots.js';
-import { heightAt } from './islands.js';
+import { heightAt, MISSION_TARGETS } from './islands.js';
 
 const MAX_FRAME = 0.25;
 const params = new URLSearchParams(window.location.search);
@@ -88,6 +88,7 @@ function endCrash() {
   document.getElementById('crash-reason').textContent = world.state.crashReason;
   showOverlay('crash-screen');
   audio.crash();
+  audio.thud();
   renderer.particles.burst(world.state.plane.x, Math.max(2, world.state.plane.alt), world.state.plane.z, 0xffffff, 18, 22, 0.9, 1.4);
   renderer.particles.burst(world.state.plane.x, Math.max(2, world.state.plane.alt), world.state.plane.z, 0x666666, 12, 12, 1.6, 2.2);
   announce(`Crashed. ${world.state.crashReason}`);
@@ -140,6 +141,8 @@ function stepGame() {
   if (events & EVENT_FUEL) audio.fuel();
   if (events & EVENT_DELIVERED) {
     audio.deliver();
+    // A water landing splashes as well as fanfares.
+    if (MISSION_TARGETS[world.mission().id].land === 'water') audio.splash();
     if (world.state.score > best) { best = world.state.score; saveBest(best); }
   }
   if (events & EVENT_CRASH) endCrash();
@@ -149,6 +152,27 @@ function stepGame() {
 function handleActions() {
   const actions = input.takeActions();
   if (actions & ACTION_MUTE) audio.setMuted(!audio.isMuted());
+  // Pilot skills: fire one per press, with its sound and effect.
+  if (screen === 'play' && world.state.mode === 'fly') {
+    const skillMap = [
+      [ACTION_SKILL_BOOST, 'boost', () => audio.skillBoost()],
+      [ACTION_SKILL_ROLL, 'roll', () => audio.skillRoll()],
+      [ACTION_SKILL_FLARE, 'flare', () => audio.skillFlare()],
+      [ACTION_SKILL_GLIDE, 'glide', () => audio.skillGlide()],
+    ];
+    for (const [flag, id, sound] of skillMap) {
+      if (actions & flag && world.useSkill(id)) {
+        sound();
+        const p = world.state.plane;
+        if (id === 'flare') {
+          renderer.particles.burst(p.x, p.alt + 2, p.z, 0xffe9a0, 18, 14, 0.9, 1.6);
+        }
+        if (id === 'boost') {
+          renderer.particles.burst(p.x, p.alt, p.z, 0xffe9a0, 10, 10, 0.5, 1.1);
+        }
+      }
+    }
+  }
   if (actions & ACTION_RESTART && (screen === 'play' || screen === 'over')) { retryMission(); return; }
   if (actions & ACTION_PAUSE) {
     if (screen === 'play') { screen = 'paused'; showOverlay('pause-screen'); announce('Paused.'); }
@@ -162,6 +186,7 @@ function handleActions() {
     if (screen === 'paused') { screen = 'play'; showOverlay(null); return; }
     if (world.state.dialogue) {
       audio.click();
+      audio.blip();
       world.advanceDialogue();
       renderer.setSky(world.mission().sky);
     }
@@ -200,6 +225,12 @@ function frame(now) {
   renderer.setRain(world.mission().sky === 'dusk' && screen === 'play');
   renderer.draw(s, s.time);
   hud.update(s);
+  // Layered sound mix follows the flight; the stall alarm beeps while stalled.
+  audio.update({
+    throttle: s.plane.throttle, speed: s.plane.speed, alt: s.plane.alt,
+    rain: world.mission().sky === 'dusk' && screen === 'play',
+  });
+  if (s.stalled && s.mode === 'fly' && screen === 'play') audio.alarm();
   const p = s.plane;
   window.__probe = {
     mode: s.mode, screen, x: +p.x.toFixed(1), alt: +p.alt.toFixed(1), z: +p.z.toFixed(1),

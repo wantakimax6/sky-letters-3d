@@ -4,28 +4,31 @@
 // so the same seed always gives the same frame. Every shot shows the
 // plane, recognisable terrain, a ring or runway ahead and ALT/SPD/HDG.
 // Letters delivered always matches the mission (Letter 3 => 2/5, and so on).
+// The cover shot fires Sky Boost, so a skill effect (speed lines and the
+// engine glow) is visible in at least one screenshot.
 import { STEP } from './config.js';
 
 const SHOTS = {
   cover: {
     mission: 1, sky: 'day', rain: false,
-    plane: { x: 0, alt: 95, z: -300, heading: 0, speed: 82, throttle: 0.55 },
-    ringIndex: 1, delivered: 0, fuel: 98, score: 0,
+    plane: { x: 0, alt: 95, z: -450, heading: 0, speed: 82, throttle: 0.55 },
+    ringIndex: 2, delivered: 0, fuel: 98, score: 0,
+    skill: 'boost',
   },
   storm: {
     mission: 3, sky: 'day', rain: false,
-    plane: { x: -20, alt: 62, z: -980, heading: 0.12, speed: 68, throttle: 0.5 },
-    ringIndex: 2, delivered: 2, fuel: 94, score: 340,
+    plane: { x: -20, alt: 62, z: -1400, heading: 0.1, speed: 68, throttle: 0.5 },
+    ringIndex: 3, delivered: 2, fuel: 94, score: 340,
     dialogue: 'deliver',
   },
   landing: {
     mission: 4, sky: 'dusk', rain: true,
-    plane: { x: 0, alt: 115, z: -1650, heading: 0, speed: 61, throttle: 0.45 },
+    plane: { x: 0, alt: 115, z: -2400, heading: 0, speed: 61, throttle: 0.45 },
     ringIndex: 3, delivered: 3, fuel: 92, score: 520,
   },
   sunset: {
     mission: 5, sky: 'sunset', rain: false,
-    plane: { x: 120, alt: 195, z: -1350, heading: 0.05, speed: 74, throttle: 0.55 },
+    plane: { x: 120, alt: 195, z: -1600, heading: 0.05, speed: 74, throttle: 0.55 },
     ringIndex: 2, delivered: 4, fuel: 94, score: 780,
   },
 };
@@ -52,6 +55,11 @@ export function stageShot(name, world) {
   state.mode = 'fly';
   state.dialogue = null;
   state.dialogueIndex = 0;
+  if (shot.skill) {
+    const sk = state.skills[shot.skill];
+    if (sk) { sk.active = 1.5; sk.cd = 0; }
+    state.skillFlash = { text: 'Sky Boost!', until: 9999 };
+  }
   if (shot.dialogue === 'deliver') {
     state.dialogue = { lines: m.deliverLines, kind: 'deliver' };
     state.dialogueIndex = 0;

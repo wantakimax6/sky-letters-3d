@@ -77,6 +77,28 @@ export function buildPlane() {
     group.add(seg);
     scarfSegments.push(seg);
   }
+  // Skill glows: an engine glow while Sky Boost is active, and soft wing
+  // glows while Feather Glide steadies the plane.
+  const boostGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(1.0, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, opacity: 0.55 }),
+  );
+  boostGlow.position.set(0, 0, -6.2);
+  boostGlow.visible = false;
+  group.add(boostGlow);
+  const glideGlowMat = new THREE.MeshBasicMaterial({
+    color: 0x9fe8ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+  });
+  const glideGlowL = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), glideGlowMat);
+  glideGlowL.rotation.x = -Math.PI / 2;
+  glideGlowL.position.set(-4.5, 0.85, 0.6);
+  glideGlowL.visible = false;
+  group.add(glideGlowL);
+  const glideGlowR = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), glideGlowMat);
+  glideGlowR.rotation.x = -Math.PI / 2;
+  glideGlowR.position.set(4.5, 0.85, 0.6);
+  glideGlowR.visible = false;
+  group.add(glideGlowR);
 
   function update(state, dt, time) {
     const p = state.plane;
@@ -87,6 +109,19 @@ export function buildPlane() {
     group.rotation.y = Math.PI - p.heading;
     group.rotation.x = -p.pitch;
     group.rotation.z = p.bank;
+    // Barrel Roll: one full visual roll across its active window.
+    const rollSk = state.skills && state.skills.roll;
+    if (rollSk && rollSk.active > 0) {
+      const progress = 1 - rollSk.active / 0.9;
+      group.rotation.z += progress * Math.PI * 2;
+    }
+    const boostSk = state.skills && state.skills.boost;
+    boostGlow.visible = !!(boostSk && boostSk.active > 0);
+    if (boostGlow.visible) boostGlow.scale.setScalar(1 + Math.sin(time * 18) * 0.15);
+    const glideSk = state.skills && state.skills.glide;
+    const gliding = !!(glideSk && glideSk.active > 0);
+    glideGlowL.visible = gliding;
+    glideGlowR.visible = gliding;
     prop.rotation.z += dt * (10 + p.throttle * 34);
     for (let i = 0; i < scarfSegments.length; i += 1) {
       const seg = scarfSegments[i];

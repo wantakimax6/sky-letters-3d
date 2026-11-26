@@ -40,6 +40,15 @@
   #hud-condition .track { height: 12px; background: rgba(255,255,255,0.18); border-radius: 6px; margin-top: 6px; overflow: hidden; }
   #hud-condition .track .fill { height: 100%; background: #39d97e; border-radius: 6px; }
   #hud-score { position: fixed; z-index: 5; right: 16px; bottom: 86px; color: #fff; font-weight: 700; font-size: 14px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #hud-skills { position: fixed; z-index: 5; left: 14px; top: 94px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 304px; }
+  #hud-skills .skill { background: rgba(20,18,30,0.72); color: #fff; border-radius: 10px; padding: 5px 9px; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+  #hud-skills .skill .sname { font-size: 12px; font-weight: 800; color: #ffd94d; }
+  #hud-skills .skill .skey { font-size: 11px; color: #cfe8f2; }
+  #hud-skills .skill .strack { height: 6px; background: rgba(255,255,255,0.18); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  #hud-skills .skill .strack .sfill { height: 100%; background: #39d97e; border-radius: 3px; }
+  #hud-skills .skill.cooling .strack .sfill { background: #ff9a3c; }
+  #hud-skills .skill.active .strack .sfill { background: #ffd94d; }
+  #hud-skill-flash { position: fixed; z-index: 5; left: 50%; top: 150px; transform: translateX(-50%); color: #ffd94d; font-weight: 800; font-size: 22px; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
   #hud-timer { position: fixed; z-index: 5; left: 50%; top: 84px; transform: translateX(-50%); color: #ffd94d; font-weight: 800; font-size: 18px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
   #hud-warn { position: fixed; z-index: 5; left: 50%; top: 116px; transform: translateX(-50%); color: #ff5a4d; font-weight: 800; font-size: 17px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
   #dialogue { position: fixed; z-index: 6; left: 50%; bottom: 18px; transform: translateX(-50%); width: 620px; max-width: calc(100vw - 480px); background: rgba(18, 20, 34, 0.88); border: 2px solid rgba(255, 201, 60, 0.7); border-radius: 14px; color: #fff; padding: 12px 16px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
@@ -81,6 +90,13 @@
 <div id="hud-horizon-wrap"><canvas id="hud-horizon" width="120" height="120"></canvas><div class="cap">HORIZON</div></div>
 <div id="hud-condition" class="panel"><div class="label">PIPIT CONDITION</div><div class="track"><div class="fill" id="hud-condition-fill" style="width:100%"></div></div></div>
 <div id="hud-score">Score 0</div>
+<div id="hud-skills">
+  <div class="skill" id="skill-boost"><div class="sname">Sky Boost</div><div class="skey">Key 1</div><div class="strack"><div class="sfill" id="skill-boost-fill" style="width:100%"></div></div></div>
+  <div class="skill" id="skill-roll"><div class="sname">Barrel Roll</div><div class="skey">Key 2 / Q</div><div class="strack"><div class="sfill" id="skill-roll-fill" style="width:100%"></div></div></div>
+  <div class="skill" id="skill-flare"><div class="sname">Flare Burst</div><div class="skey">Key 3 / F</div><div class="strack"><div class="sfill" id="skill-flare-fill" style="width:100%"></div></div></div>
+  <div class="skill" id="skill-glide"><div class="sname">Feather Glide</div><div class="skey">Key 4 / E</div><div class="strack"><div class="sfill" id="skill-glide-fill" style="width:100%"></div></div></div>
+</div>
+<div id="hud-skill-flash" class="hidden"></div>
 <div id="hud-timer" class="hidden"></div>
 <div id="hud-warn" class="hidden"></div>
 
@@ -101,6 +117,7 @@
     <div class="controls">
       ↑ / ↓ pitch &nbsp;•&nbsp; ← / → bank and turn &nbsp;•&nbsp; W / S or Shift / Ctrl throttle<br>
       Space brake &nbsp;•&nbsp; drag the mouse to steer &nbsp;•&nbsp; P pause &nbsp;•&nbsp; M mute &nbsp;•&nbsp; R retry<br>
+      Skills: 1 Sky Boost &nbsp;•&nbsp; 2 / Q Barrel Roll &nbsp;•&nbsp; 3 / F Flare Burst &nbsp;•&nbsp; 4 / E Feather Glide<br>
       Fly through the golden rings, watch your fuel, and land slow and gentle.
     </div>
     <button id="start-btn">Start flying</button>

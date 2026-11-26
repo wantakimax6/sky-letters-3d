@@ -14,8 +14,8 @@ export function createRenderer(canvas, rng) {
   renderer.setSize(window.innerWidth, window.innerHeight);
   if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(SKIES.day.fog, 600, 3200);
-  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 6000);
+  scene.fog = new THREE.Fog(SKIES.day.fog, 800, 5200);
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 12000);
   camera.position.set(0, 70, -30);
 
   const terrain = buildTerrain(rng);
@@ -39,12 +39,19 @@ export function createRenderer(canvas, rng) {
   const ringMatFuel = new THREE.MeshPhongMaterial({
     color: 0x39d97e, emissive: 0x0a7a34, shininess: 80, transparent: true, opacity: 0.95,
   });
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 12; i += 1) {
     const m = new THREE.Mesh(new THREE.TorusGeometry(20, 1.8, 12, 40), ringMatGold.clone());
     m.visible = false;
     scene.add(m);
     ringMeshes.push(m);
   }
+  // Flare Burst: a bright glowing sphere at the nose while it burns.
+  const flareMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(4.5, 12, 10),
+    new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.9 }),
+  );
+  flareMesh.visible = false;
+  scene.add(flareMesh);
   // A glowing beacon marker above the next target, so the pilot can
   // always see where to fly next.
   const beacon = new THREE.Mesh(
@@ -111,6 +118,8 @@ export function createRenderer(canvas, rng) {
       camera.position.y + sunDir.y * 2400,
       camera.position.z + sunDir.z * 2400,
     );
+    // The glitter path lies flat on the water toward the sun.
+    if (terrain.setGlitter) terrain.setGlitter(camera.position, sunDir, skyKey);
     sunLight.position.set(p.x + sunDir.x * 800, p.alt + sunDir.y * 800 + 200, p.z + sunDir.z * 800);
     sunLight.target.position.set(p.x, p.alt, p.z);
     sunLight.target.updateMatrixWorld();
@@ -138,6 +147,22 @@ export function createRenderer(canvas, rng) {
     }
     beacon.position.set(bx, by + 34 + Math.sin(time * 2) * 2, bz);
     beacon.visible = state.mode === 'fly';
+    // Flare Burst glow at the nose while it burns; Sky Boost leaves a
+    // trail of speed-line sparks behind the plane.
+    const flareSk = state.skills && state.skills.flare;
+    flareMesh.visible = !!(flareSk && flareSk.active > 0);
+    if (flareMesh.visible) {
+      flareMesh.position.set(p.x + fx * 9, p.alt + 1, p.z + fz * 9);
+      flareMesh.scale.setScalar(1 + Math.sin(time * 20) * 0.12);
+    }
+    const boostSk = state.skills && state.skills.boost;
+    if (boostSk && boostSk.active > 0) {
+      particles.burst(p.x - fx * 12, p.alt + 1, p.z - fz * 12, 0xffe9a0, 2, 6, 0.35, 0.6);
+    }
+    const rollSk = state.skills && state.skills.roll;
+    if (rollSk && rollSk.active > 0) {
+      particles.burst(p.x, p.alt, p.z, 0x9fe8ff, 2, 4, 0.3, 0.8);
+    }
     // Storm clouds only hang over the canyon run (mission 3).
     for (const c of terrain.stormClouds) c.visible = state.missionIndex === 2;
     plane.update(state, 1 / 60, time);

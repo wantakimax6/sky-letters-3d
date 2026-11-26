@@ -21,7 +21,8 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function buildRings(mission) {
   const target = islandById(MISSION_TARGETS[mission.id].island);
   const rings = [];
-  const count = mission.id === 1 ? 3 : mission.id === 5 ? 5 : 4;
+  // Longer chains across the bigger map: 5, 5, 6, 5 and 7 golden rings.
+  const count = mission.id === 1 ? 5 : mission.id === 2 ? 5 : mission.id === 3 ? 6 : mission.id === 4 ? 5 : 7;
   for (let i = 0; i < count; i += 1) {
     const t = (i + 1) / (count + 1);
     let x = lerp(0, target.x, t);
@@ -31,9 +32,18 @@ function buildRings(mission) {
     if (mission.id === 4) y = 115;
     rings.push({ x, y, z: lerp(-80, target.z + 160, t), r: 20, done: false, fuel: false });
   }
+  // Green fuel rings on the long legs, flown after the golden rings.
   if (mission.id === 4) {
     rings.push({ x: -140, y: 120, z: -900, r: 20, done: false, fuel: true });
     rings.push({ x: 100, y: 120, z: -1950, r: 20, done: false, fuel: true });
+    rings.push({ x: -260, y: 120, z: -2900, r: 20, done: false, fuel: true });
+    rings.push({ x: 180, y: 115, z: -3600, r: 20, done: false, fuel: true });
+  }
+  if (mission.id === 2) {
+    rings.push({ x: 210, y: 100, z: -1500, r: 20, done: false, fuel: true });
+  }
+  if (mission.id === 5) {
+    rings.push({ x: -40, y: 110, z: -2600, r: 20, done: false, fuel: true });
   }
   return rings;
 }
@@ -46,10 +56,37 @@ export function createWorld(seed) {
     wind: 0, mode: 'fly', crashReason: '', landedGentle: false,
     dialogue: null, dialogueIndex: 0, deliveredCount: 0, stalled: false,
     time: 0, seed,
+    skills: {
+      boost: { cd: 0, active: 0 }, roll: { cd: 0, active: 0 },
+      flare: { cd: 0, active: 0 }, glide: { cd: 0, active: 0 },
+    },
+    stormClearedUntil: 0, protectedUntil: 0, skillFlash: null,
   };
 
   function mission() { return MISSIONS[state.missionIndex]; }
   function targetIsland() { return islandById(MISSION_TARGETS[mission().id].island); }
+
+  // Pilot skills (see config SKILLS): each has a cooldown and a short
+  // active window. Returns true only when the skill actually fired.
+  const SKILL_DEFS = {
+    boost: { cooldown: 8, duration: 2.2, label: 'Sky Boost!' },
+    roll: { cooldown: 6, duration: 0.9, label: 'Barrel Roll!' },
+    flare: { cooldown: 10, duration: 1.2, label: 'Flare Burst!' },
+    glide: { cooldown: 9, duration: 4, label: 'Feather Glide!' },
+  };
+  function useSkill(id) {
+    if (state.mode !== 'fly') return false;
+    const def = SKILL_DEFS[id];
+    const sk = state.skills[id];
+    if (!def || !sk || sk.cd > 0) return false;
+    sk.cd = def.cooldown;
+    sk.active = def.duration;
+    state.skillFlash = { text: def.label, until: state.time + 1.4 };
+    if (id === 'boost') state.fuel = Math.max(0, state.fuel - 6);
+    if (id === 'flare') state.stormClearedUntil = state.time + 6;
+    if (id === 'roll') state.protectedUntil = state.time + 1.0;
+    return true;
+  }
 
   function startMission(index) {
     state.missionIndex = index;
@@ -64,6 +101,10 @@ export function createWorld(seed) {
     state.mode = 'dialogue';
     state.dialogue = { lines: m.lines, kind: 'brief' };
     state.dialogueIndex = 0;
+    for (const k of Object.keys(state.skills)) { state.skills[k].cd = 0; state.skills[k].active = 0; }
+    state.stormClearedUntil = 0;
+    state.protectedUntil = 0;
+    state.skillFlash = null;
   }
 
   function nextTarget() {
@@ -117,11 +158,18 @@ export function createWorld(seed) {
       state.mode = 'crashed'; state.crashReason = 'Too slow — the birthday candles melted. Try again, a little faster.';
       return EVENT_CRASH;
     }
-    // Throttle and speed.
+    // Pilot-skill timers tick down every step.
+    for (const k of Object.keys(state.skills)) {
+      const sk = state.skills[k];
+      if (sk.cd > 0) sk.cd = Math.max(0, sk.cd - dt);
+      if (sk.active > 0) sk.active = Math.max(0, sk.active - dt);
+    }
+    // Throttle and speed. Sky Boost multiplies the target speed.
     p.throttle = clamp(p.throttle + (input.throttleDelta || 0) * dt * 0.55, 0, 1);
     if (input.brake) p.throttle = clamp(p.throttle - dt * 0.8, 0, 1);
     if (state.fuel <= 0) p.throttle = 0;
-    const targetSpeed = FLIGHT.minSpeed + p.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    let targetSpeed = FLIGHT.minSpeed + p.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
+    if (state.skills.boost.active > 0) targetSpeed = Math.min(168, targetSpeed * 1.45);
     p.speed += (targetSpeed - p.speed) * 0.35 * dt;
     if (input.brake) p.speed = Math.max(FLIGHT.minSpeed, p.speed - 26 * dt);
     // Pitch and climb. Climbing is strong, sinking is gentle, so a landing
@@ -130,14 +178,19 @@ export function createWorld(seed) {
     const stalled = p.speed < FLIGHT.stallSpeed;
     state.stalled = stalled;
     if (stalled) events |= EVENT_STALL;
-    const climb = stalled ? -FLIGHT.sinkRate
+    // Feather Glide steadies the plane: a stalled glide sinks gently
+    // instead of dropping, and a normal glide never sinks fast.
+    const gliding = state.skills.glide.active > 0;
+    const sink = gliding ? -4 : -FLIGHT.sinkRate;
+    const climb = stalled ? sink
       : pitchIn * (pitchIn >= 0 ? FLIGHT.climbRate : 15) - (p.throttle < 0.25 ? 6 : 0);
-    p.vs = lerp(p.vs, climb, 0.2);
+    p.vs = lerp(p.vs, gliding ? Math.max(climb, -4) : climb, 0.2);
     p.alt += p.vs * dt;
     p.pitch = lerp(p.pitch, clamp(p.vs / FLIGHT.climbRate, -0.5, 0.5), 0.1);
-    // Bank, turn and wind.
+    // Bank, turn and wind. A Barrel Roll protects briefly and does not
+    // fight the turn: the visual roll is drawn by the plane, not the bank.
     const rollIn = (input.roll || 0) + (input.mouseSteer || 0);
-    const bankTarget = clamp(rollIn, -1, 1) * FLIGHT.bankMax * (stalled ? 0.4 : 1);
+    const bankTarget = clamp(rollIn, -1, 1) * FLIGHT.bankMax * (stalled ? 0.4 : 1) * (gliding ? 0.5 : 1);
     p.bank = lerp(p.bank, bankTarget, 0.14);
     p.heading += p.bank * FLIGHT.turnRate * (p.speed / FLIGHT.cruiseSpeed) * dt;
     p.x += Math.sin(p.heading) * p.speed * dt + state.wind * dt * 0.4;
@@ -146,9 +199,9 @@ export function createWorld(seed) {
     // Fuel and damage.
     state.fuel = Math.max(0, state.fuel - FLIGHT.fuelDrain * (0.35 + p.throttle) * dt);
     if (state.fuel <= 0 && state.mode === 'fly') p.vs = Math.min(p.vs, -8);
-    // Stay inside the archipelago (forward is -z).
-    p.x = clamp(p.x, -1500, 1500);
-    p.z = clamp(p.z, -3500, 260);
+    // Stay inside the big archipelago (forward is -z).
+    p.x = clamp(p.x, -2200, 2200);
+    p.z = clamp(p.z, -5600, 400);
     if (p.alt > 520) { p.alt = 520; p.vs = Math.min(p.vs, 0); }
     // Rings.
     const ring = state.rings[state.ringIndex];
@@ -165,8 +218,10 @@ export function createWorld(seed) {
         }
       }
     }
-    // Storm clouds on the canyon run hurt when flown through.
-    if (m.id === 3 && p.alt > 90 && p.alt < 260 && p.z < -1500 && p.z > -2400) {
+    // Storm clouds on the canyon run hurt when flown through — unless a
+    // Flare Burst cleared them, or a Barrel Roll is protecting the plane.
+    if (m.id === 3 && state.time > state.stormClearedUntil && state.time > state.protectedUntil
+      && p.alt > 90 && p.alt < 260 && p.z < -1500 && p.z > -2400) {
       state.damage = Math.min(100, state.damage + 9 * dt);
     }
     // Landing or crash. The landing zone is the water runway in front of
@@ -215,6 +270,6 @@ export function createWorld(seed) {
   reset();
   return {
     state, reset, step, startMission, nextTarget, distanceToTarget,
-    mission, targetIsland, advanceDialogue, retryMission,
+    mission, targetIsland, advanceDialogue, retryMission, useSkill,
   };
 }
