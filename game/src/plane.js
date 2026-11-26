@@ -6,14 +6,30 @@
 // geometry, two-tone grey and orange, with thin dark panel lines and
 // Nara's red scarf as a small ribbon on the tail fin.
 // Forward is +z; heading 0 faces north (+z).
-export function buildPlane() {
-  const grey = new THREE.MeshPhongMaterial({ color: 0x8a94a6, shininess: 70 });
-  const greyDark = new THREE.MeshPhongMaterial({ color: 0x5a6474, shininess: 60 });
-  const orange = new THREE.MeshPhongMaterial({ color: 0xf96a12, shininess: 40 });
-  const red = new THREE.MeshPhongMaterial({ color: 0xd93b2b, shininess: 30 });
-  const dark = new THREE.MeshPhongMaterial({ color: 0x23232c, shininess: 25 });
-  const glass = new THREE.MeshPhongMaterial({
-    color: 0x14324e, shininess: 220, specular: 0xffffff, transparent: true, opacity: 0.92,
+export function buildPlane(tex) {
+  const T = tex || {};
+  const env = T.envMap || null;
+  // Realistic metal: the procedural panel/rivet/weathering texture as
+  // the colour map, metalness for the sheen, and the sky cubemap for
+  // reflections — without an environment, standard materials go flat.
+  const grey = new THREE.MeshStandardMaterial({
+    map: T.jetMetal || null, color: T.jetMetal ? 0xffffff : 0x8a94a6,
+    metalness: 0.72, roughness: 0.42, envMap: env, envMapIntensity: 0.8,
+  });
+  const greyDark = new THREE.MeshStandardMaterial({
+    map: T.jetMetal || null, color: T.jetMetal ? 0x9aa0ab : 0x5a6474,
+    metalness: 0.7, roughness: 0.5, envMap: env, envMapIntensity: 0.7,
+  });
+  const wingMat = new THREE.MeshStandardMaterial({
+    map: T.jetWing || T.jetMetal || null, color: T.jetWing ? 0xffffff : 0x8a94a6,
+    metalness: 0.7, roughness: 0.4, envMap: env, envMapIntensity: 0.8,
+  });
+  const orange = new THREE.MeshStandardMaterial({ color: 0xf96a12, metalness: 0.4, roughness: 0.45, envMap: env, envMapIntensity: 0.6 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xd93b2b, metalness: 0.3, roughness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x23232c, metalness: 0.6, roughness: 0.5 });
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0x2a5a7a, metalness: 0.95, roughness: 0.08, envMap: env, envMapIntensity: 1.6,
+    transparent: true, opacity: 0.92,
   });
   const lineMat = new THREE.MeshBasicMaterial({ color: 0x2a2f3a });
 
@@ -53,8 +69,8 @@ export function buildPlane() {
   // Swept-back main wings: long thin boxes angled back, orange tips.
   // The sweep sign matters: the outer end must sit toward the tail
   // (negative z), or the tips float detached from the wing.
-  add(new THREE.BoxGeometry(8.6, 0.22, 2.6), grey, -4.6, 0.35, -0.6, 0, -0.55, 0);
-  add(new THREE.BoxGeometry(8.6, 0.22, 2.6), grey, 4.6, 0.35, -0.6, 0, 0.55, 0);
+  add(new THREE.BoxGeometry(8.6, 0.22, 2.6), wingMat, -4.6, 0.35, -0.6, 0, -0.55, 0);
+  add(new THREE.BoxGeometry(8.6, 0.22, 2.6), wingMat, 4.6, 0.35, -0.6, 0, 0.55, 0);
   add(new THREE.BoxGeometry(1.7, 0.24, 2.2), orange, -8.3, 0.35, -2.4, 0, -0.55, 0);
   add(new THREE.BoxGeometry(1.7, 0.24, 2.2), orange, 8.3, 0.35, -2.4, 0, 0.55, 0);
   // Tailplanes, smaller and swept the same way.
@@ -138,6 +154,13 @@ export function buildPlane() {
     group.add(seg);
     scarfSegments.push(seg);
   }
+
+  // The jet casts a real shadow on the sea and islands below (the sun
+  // light in render.js is the shadow caster). Transparent parts (flame,
+  // canopy, glows) are left out so they never throw a dark blob.
+  group.traverse((o) => {
+    if (o.isMesh && o.material && o.material.transparent !== true) o.castShadow = true;
+  });
 
   function update(state, dt, time) {
     const p = state.plane;

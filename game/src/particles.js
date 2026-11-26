@@ -32,23 +32,26 @@ export function createParticles(scene) {
     for (let i = 0; i < count; i += 1) spawn(x, y, z, color, speed, life, size);
   }
   // Rain: a points cloud that follows the camera and falls forever.
-  // A soft round sprite texture, so the drops read as rain, not squares.
+  // The sprite is a tall vertical streak (not a round dot), so the rain
+  // reads as falling lines even in a still screenshot.
   const dropCanvas = document.createElement('canvas');
-  dropCanvas.width = 32; dropCanvas.height = 32;
+  dropCanvas.width = 16; dropCanvas.height = 64;
   const dg = dropCanvas.getContext('2d');
-  const dgrad = dg.createRadialGradient(16, 16, 1, 16, 16, 15);
-  dgrad.addColorStop(0, 'rgba(255,255,255,1)');
-  dgrad.addColorStop(0.5, 'rgba(220,232,255,0.7)');
+  dg.clearRect(0, 0, 16, 64);
+  const dgrad = dg.createLinearGradient(0, 0, 0, 64);
+  dgrad.addColorStop(0, 'rgba(220,232,255,0)');
+  dgrad.addColorStop(0.45, 'rgba(220,232,255,0.85)');
+  dgrad.addColorStop(0.55, 'rgba(255,255,255,1)');
   dgrad.addColorStop(1, 'rgba(220,232,255,0)');
   dg.fillStyle = dgrad;
-  dg.fillRect(0, 0, 32, 32);
+  dg.fillRect(6, 0, 4, 64);
   const dropTex = new THREE.CanvasTexture(dropCanvas);
   const rainCount = 420;
   const rainPos = new Float32Array(rainCount * 3);
   const rainGeo = new THREE.BufferGeometry();
   rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
   const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({
-    color: 0xcfe0ff, size: 2.6, map: dropTex, transparent: true, opacity: 0.7, depthWrite: false,
+    color: 0xcfe0ff, size: 7, map: dropTex, transparent: true, opacity: 0.55, depthWrite: false,
   }));
   rain.visible = false;
   rain.frustumCulled = false;

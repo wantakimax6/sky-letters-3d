@@ -42,6 +42,7 @@ function islandGeometry(isl) {
   const segs = 40;
   const positions = [];
   const colors = [];
+  const uvs = [];
   const indices = [];
   const sand = new THREE.Color(PALETTE.sand);
   const grass = new THREE.Color(PALETTE.grass);
@@ -73,6 +74,9 @@ function islandGeometry(isl) {
       const z = isl.z + Math.sin(a) * rr;
       const h = i === 0 ? heightAt(isl.x, isl.z) : heightAt(x, z);
       positions.push(x, Math.max(0.25, h), z);
+      // UVs in world units: the detail texture tiles every 90 units,
+      // so the grain reads at the same scale on every island.
+      uvs.push(x / 90, z / 90);
       const col = colorFor(h, isl);
       colors.push(col.r, col.g, col.b);
     }
@@ -88,18 +92,22 @@ function islandGeometry(isl) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
 }
 
-export function buildTerrain(rng) {
+export function buildTerrain(rng, tex) {
   const group = new THREE.Group();
   const sky = SKIES.day;
+  const T = tex || {};
   // Shared geometries/materials: every palm, hut and boat reuses them.
   const trunkGeo = new THREE.CylinderGeometry(0.32, 0.5, 7, 6);
   const frondGeo = new THREE.ConeGeometry(1.15, 4.6, 4);
-  const trunkMat = new THREE.MeshPhongMaterial({ color: PALETTE.palmTrunk, shininess: 10 });
+  const trunkMat = new THREE.MeshStandardMaterial({
+    map: T.palmBark || null, color: T.palmBark ? 0xffffff : PALETTE.palmTrunk, roughness: 0.95,
+  });
   const leafMat = new THREE.MeshPhongMaterial({ color: PALETTE.palm, shininess: 20, side: THREE.DoubleSide });
   const hutWallGeo = new THREE.BoxGeometry(5, 3.6, 4.5);
   const hutRoofGeo = new THREE.ConeGeometry(4.2, 2.8, 4);
@@ -146,9 +154,10 @@ export function buildTerrain(rng) {
     return g;
   }
 
-  // City building facade: a canvas texture of lit windows on a dark
-  // facade, used as both map and emissive map so the windows glow at
-  // dusk while the walls stay dark. One shared texture for every tower.
+  // City building facades: six procedural facade textures (lit windows,
+  // balconies, shop fronts), used as map and emissive map so the windows
+  // glow at dusk while the walls stay dark. Buildings pick a facade by
+  // index, so the city no longer repeats one texture everywhere.
   function buildingTexture() {
     const c = document.createElement('canvas');
     c.width = 128; c.height = 256;
@@ -165,11 +174,15 @@ export function buildTerrain(rng) {
     return new THREE.CanvasTexture(c);
   }
   const facadeTex = buildingTexture();
-  const facadeMat = new THREE.MeshPhongMaterial({
-    map: facadeTex, emissiveMap: facadeTex, emissive: 0xaa8833, shininess: 15,
+  const facadeMats = (T.facades && T.facades.length ? T.facades : [facadeTex]).map((f) => (
+    new THREE.MeshStandardMaterial({
+      map: f, emissiveMap: f, emissive: 0xbb9955, emissiveIntensity: 0.55, roughness: 0.9, metalness: 0.05,
+    })
+  ));
+  const facadeTopMat = new THREE.MeshStandardMaterial({ color: 0x3a4152, roughness: 0.9 });
+  const streetMat = new THREE.MeshStandardMaterial({
+    map: T.tarmac || null, color: T.tarmac ? 0xffffff : 0x2b2f3a, roughness: 0.95,
   });
-  const facadeTopMat = new THREE.MeshPhongMaterial({ color: 0x3a4152, shininess: 10 });
-  const streetMat = new THREE.MeshPhongMaterial({ color: 0x2b2f3a, shininess: 5 });
   const towerGlassMat = new THREE.MeshPhongMaterial({ color: 0x9fd8ef, shininess: 120, specular: 0xffffff });
 
   // The coastal city Kota Langit: dozens of towers on the island
@@ -178,9 +191,11 @@ export function buildTerrain(rng) {
   function buildCity(isl) {
     const g = new THREE.Group();
     const topY = heightAt(isl.x, isl.z);
-    for (const b of CITY_BUILDINGS) {
+    CITY_BUILDINGS.forEach((b, bi) => {
+      const fm = facadeMats[bi % facadeMats.length];
       const tower = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d),
-        [facadeMat, facadeMat, facadeTopMat, facadeTopMat, facadeMat, facadeMat]);
+        [fm, fm, facadeTopMat, facadeTopMat, fm, fm]);
+      tower.castShadow = true;
       tower.position.set(b.x, topY + b.h / 2, b.z);
       tower.rotation.y = b.rot || 0;
       g.add(tower);
@@ -190,7 +205,7 @@ export function buildTerrain(rng) {
         beacon.position.set(b.x, topY + b.h + 1.2, b.z);
         g.add(beacon);
       }
-    }
+    });
     // Streets: dark strips along the grid.
     for (let i = -3; i <= 3; i += 1) {
       const s1 = new THREE.Mesh(new THREE.PlaneGeometry(380, 10), streetMat);
@@ -229,9 +244,25 @@ export function buildTerrain(rng) {
     }
     // Airport: lit runway strip + control tower on the east edge.
     const runway = new THREE.Mesh(new THREE.BoxGeometry(16, 1.0, 200),
-      new THREE.MeshPhongMaterial({ color: 0x3a3f4a, shininess: 10 }));
+      new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.95 }));
     runway.position.set(isl.x + 190, topY + 0.6, isl.z);
     g.add(runway);
+    // Asphalt top with painted centreline and threshold marks, so the
+    // runway reads as a real strip from the air. The texture is
+    // landscape, so it is rotated to run along the strip.
+    if (T.runway) {
+      const rwTex = T.runway.clone();
+      rwTex.needsUpdate = true;
+      rwTex.center.set(0.5, 0.5);
+      rwTex.rotation = Math.PI / 2;
+      const rwTop = new THREE.Mesh(
+        new THREE.PlaneGeometry(16, 200),
+        new THREE.MeshStandardMaterial({ map: rwTex, roughness: 0.9 }),
+      );
+      rwTop.rotation.x = -Math.PI / 2;
+      rwTop.position.set(isl.x + 190, topY + 1.15, isl.z);
+      g.add(rwTop);
+    }
     const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffd94d });
     for (let i = 0; i < 9; i += 1) {
       for (const side of [-1, 1]) {
@@ -249,10 +280,16 @@ export function buildTerrain(rng) {
     return g;
   }
 
-  // Sky dome with a vertical gradient texture.
+  // Sky dome: a photographic sky texture per time of day (gradient +
+  // painted cloud bands), falling back to the canvas gradient until the
+  // file texture has loaded.
+  function domeTextureFor(key) {
+    if (T.sky && T.sky[key] && T.sky[key].image) return T.sky[key];
+    return skyTexture(SKIES[key] || sky);
+  }
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(5200, 24, 12),
-    new THREE.MeshBasicMaterial({ map: skyTexture(sky), side: THREE.BackSide, fog: false }),
+    new THREE.MeshBasicMaterial({ map: domeTextureFor('day'), side: THREE.BackSide, fog: false }),
   );
   group.add(dome);
   // Sun sprite: positioned every frame far away in the sun's direction
@@ -262,17 +299,22 @@ export function buildTerrain(rng) {
   }));
   sun.scale.set(320, 320, 1);
   group.add(sun);
-  // Sea: a large plane whose vertices ripple gently. Specular is kept
-  // low on purpose — a strong specular made a huge white vertical beam
-  // in the sunset shots. The glitter path below is the sun's reflection.
+  // Sea: a large plane whose vertices ripple gently, now with a
+  // photographic colour texture and a wave normal map for sun glitter.
+  // Specular is kept moderate and the normal map does the sparkling, so
+  // no huge white beam ever appears. The textures scroll slowly, so the
+  // water feels alive instead of painted on.
   const seaGeo = new THREE.PlaneGeometry(9000, 9000, 48, 48);
   seaGeo.rotateX(-Math.PI / 2);
   const seaBase = seaGeo.attributes.position.array.slice();
   const seaMat = new THREE.MeshPhongMaterial({
-    color: sky.sea, shininess: 0, specular: 0x000000, transparent: true, opacity: 0.96,
+    map: T.seaColor || null, normalMap: T.seaNormal || null, normalScale: new THREE.Vector2(0.12, 0.12),
+    color: T.seaColor ? 0xffffff : sky.sea, shininess: 14, specular: 0x224455,
+    transparent: true, opacity: 0.96,
   });
   const sea = new THREE.Mesh(seaGeo, seaMat);
   sea.position.set(0, 0, -2600);
+  sea.receiveShadow = true;
   group.add(sea);
   // Sun glitter: a WIDE, SHORT, soft horizontal band on the water, lying
   // flat far ahead toward the sun — its long axis runs ACROSS the view,
@@ -293,13 +335,21 @@ export function buildTerrain(rng) {
     const hz = sunDir.z / len;
     glitterGroup.position.set(camPos.x + hx * 700, 0.7, camPos.z + hz * 700);
     glitterGroup.rotation.y = Math.atan2(hx, hz);
-    glitterMat.opacity = key === 'day' ? 0.10 : key === 'dusk' ? 0.18 : 0.22;
+    glitterMat.opacity = key === 'day' ? 0.06 : key === 'dusk' ? 0.12 : 0.16;
     glitterMat.color.setHex(key === 'day' ? 0xfff3c4 : 0xffc46b);
   }
 
   // Islands, sand rims, palms, huts, volcano, lighthouse, runway, airstrip.
-  const islandMat = new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 8 });
-  const sandMat = new THREE.MeshPhongMaterial({ color: PALETTE.sand, shininess: 5, transparent: true, opacity: 0.55 });
+  // The detail texture is a bump map on the islands: the vertex colours
+  // keep the sand/grass/rock zoning, while the bump adds photographic
+  // grain without shifting the colours.
+  const islandMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, bumpMap: T.terrainDetail || null, bumpScale: 0.9, roughness: 0.95, metalness: 0,
+  });
+  const sandMat = new THREE.MeshStandardMaterial({
+    map: T.sand || null, color: T.sand ? 0xffffff : PALETTE.sand, roughness: 0.95,
+    transparent: true, opacity: 0.55,
+  });
   const whiteMat = new THREE.MeshPhongMaterial({ color: 0xf8f4ec, shininess: 30 });
   const redMat = new THREE.MeshPhongMaterial({ color: 0xd93b2b, shininess: 30 });
   const darkMat = new THREE.MeshPhongMaterial({ color: 0x2b2b33, shininess: 20 });
@@ -312,6 +362,7 @@ export function buildTerrain(rng) {
   const smokeMat = new THREE.MeshBasicMaterial({ color: 0x8a8a92, transparent: true, opacity: 0.32, depthWrite: false });
   for (const isl of ISLANDS) {
     const mesh = new THREE.Mesh(islandGeometry(isl), islandMat);
+    mesh.receiveShadow = true;
     group.add(mesh);
     const rim = new THREE.Mesh(new THREE.RingGeometry(isl.r * 0.97, isl.r * 1.03, 40), sandMat);
     rim.rotation.x = -Math.PI / 2;
@@ -358,7 +409,10 @@ export function buildTerrain(rng) {
     }
     if (isl.kind === 'volcano') {
       const cone = new THREE.Mesh(new THREE.ConeGeometry(isl.r * 0.5, isl.h * 0.85, 24),
-        new THREE.MeshPhongMaterial({ color: PALETTE.volcano, shininess: 5 }));
+        new THREE.MeshStandardMaterial({
+          map: T.basalt || null, color: T.basalt ? 0xffffff : PALETTE.volcano, roughness: 1,
+        }));
+      cone.castShadow = true;
       cone.position.set(isl.x, topY * 0.4, isl.z);
       group.add(cone);
       volcanoTop = new THREE.Vector3(isl.x, topY + isl.h * 0.35, isl.z);
@@ -424,6 +478,19 @@ export function buildTerrain(rng) {
       const strip = new THREE.Mesh(new THREE.BoxGeometry(18, 1.2, 130), stripMat);
       strip.position.set(isl.x, topY + 0.4, isl.z);
       group.add(strip);
+      if (T.runway) {
+        const rwTex = T.runway.clone();
+        rwTex.needsUpdate = true;
+        rwTex.center.set(0.5, 0.5);
+        rwTex.rotation = Math.PI / 2;
+        const rwTop = new THREE.Mesh(
+          new THREE.PlaneGeometry(18, 130),
+          new THREE.MeshStandardMaterial({ map: rwTex, roughness: 0.9 }),
+        );
+        rwTop.rotation.x = -Math.PI / 2;
+        rwTop.position.set(isl.x, topY + 1.05, isl.z);
+        group.add(rwTop);
+      }
     }
     if (isl.kind === 'memorial') {
       const stone = new THREE.Mesh(new THREE.BoxGeometry(6, 9, 2), whiteMat);
@@ -523,41 +590,45 @@ export function buildTerrain(rng) {
     traffic.push({ group: t, ...route });
   }
   // Floating lanterns for the sunset finale: warm glowing spheres
-  // that rise slowly over the sea near Memorial Hill. Only visible
-  // when the sky is sunset (mission 5).
+  // that rise slowly over the sea along the final flight path, close
+  // enough to the staged sunset camera (plane near x 120, z -1600,
+  // heading north) to actually be visible in the sunset screenshot.
   const lanterns = [];
   const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffb36b, transparent: true, opacity: 0.9 });
-  const lanternGeo = new THREE.SphereGeometry(1.6, 8, 6);
+  const lanternGeo = new THREE.SphereGeometry(3.2, 8, 6);
   for (let i = 0; i < 24; i += 1) {
     const l = new THREE.Mesh(lanternGeo, lanternMat);
     const a = rng.range(0, Math.PI * 2);
-    const rr = rng.range(60, 420);
-    l.position.set(-140 + Math.cos(a) * rr, rng.range(6, 60), -5100 + Math.sin(a) * rr);
+    const rr = rng.range(40, 320);
+    l.position.set(120 + Math.cos(a) * rr, rng.range(50, 130), -2050 + Math.sin(a) * rr);
     l.visible = false;
     group.add(l);
     lanterns.push({ mesh: l, speed: rng.range(1.5, 3.5), baseY: l.position.y });
   }
-  // Clouds: bright basic material so they read as clouds at any light.
-  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: true });
-  const stormMat = new THREE.MeshBasicMaterial({ color: 0x555566, fog: true });
+  // Clouds: photographic billboards, not flat grey blobs. Each cloud is
+  // a sprite with a soft procedural cloud texture, so it reads as a real
+  // cloud from any angle and at any light. Three variants keep them from
+  // looking cloned.
+  const cloudTexs = [T.cloud, T.cloudB, T.cloudC].filter(Boolean);
+  const cloudMats = cloudTexs.map((t) => new THREE.SpriteMaterial({
+    map: t, transparent: true, opacity: 0.6, depthWrite: false, fog: true,
+  }));
+  const stormMat = new THREE.SpriteMaterial({
+    map: T.stormCloud || null, color: T.stormCloud ? 0xffffff : 0x555566,
+    transparent: true, opacity: 0.85, depthWrite: false, fog: true,
+  });
   const clouds = [];
   function makeCloud(mat, cx, cy, cz, scale) {
-    const c = new THREE.Group();
-    const n = 3 + Math.floor(rng.next() * 3);
-    for (let i = 0; i < n; i += 1) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(rng.range(9, 20), 10, 8), mat);
-      s.position.set(rng.range(-22, 22), rng.range(-4, 5), rng.range(-10, 10));
-      s.scale.y = 0.55;
-      c.add(s);
-    }
-    c.position.set(cx, cy, cz);
-    c.scale.setScalar(scale);
-    group.add(c);
-    clouds.push(c);
-    return c;
+    const s = new THREE.Sprite(mat);
+    s.position.set(cx, cy, cz);
+    s.scale.set(220 * scale, 78 * scale, 1);
+    group.add(s);
+    clouds.push(s);
+    return s;
   }
-  for (let i = 0; i < 26; i += 1) {
-    makeCloud(cloudMat, rng.range(-2600, 2600), rng.range(210, 380), rng.range(-5600, 400), rng.range(0.8, 1.8));
+  for (let i = 0; i < 18; i += 1) {
+    makeCloud(cloudMats[i % cloudMats.length] || stormMat,
+      rng.range(-2600, 2600), rng.range(210, 380), rng.range(-5600, 400), rng.range(0.7, 1.4));
   }
   const stormClouds = [];
   for (let i = 0; i < 8; i += 1) {
@@ -568,16 +639,22 @@ export function buildTerrain(rng) {
   function setSky(key) {
     const s = SKIES[key] || SKIES.day;
     skyKey = key;
-    dome.material.map = skyTexture(s);
+    // Photographic sky file when it has loaded, else the gradient.
+    dome.material.map = domeTextureFor(key);
     dome.material.needsUpdate = true;
-    seaMat.color.setHex(s.sea);
+    // With a colour texture on the sea, the tint must stay light or the
+    // map goes nearly black at dusk: white by day, warm tints at dusk.
+    seaMat.color.setHex(key === 'day' ? 0xffffff : key === 'dusk' ? 0xffd0b0 : 0xffc0a0);
     sun.material.color.setHex(s.sun);
     if (beam) beam.material.opacity = key === 'day' ? 0.08 : 0.22;
     for (const l of lanterns) l.mesh.visible = key === 'sunset';
-    cloudMat.color.setHex(key === 'day' ? 0xffffff : 0xffd9c4);
+    for (const m of cloudMats) m.color.setHex(key === 'day' ? 0xffffff : 0xffd9c4);
     return s;
   }
   function update(dt, time) {
+    // Scroll the sea textures slowly, so the water feels alive.
+    if (T.seaColor) { T.seaColor.offset.x += dt * 0.004; T.seaColor.offset.y += dt * 0.0015; }
+    if (T.seaNormal) { T.seaNormal.offset.x -= dt * 0.006; T.seaNormal.offset.y += dt * 0.002; }
     // Gentle sea ripple: move the sea vertices on a slow sine.
     const pos = seaGeo.attributes.position;
     for (let i = 0; i < pos.count; i += 1) {

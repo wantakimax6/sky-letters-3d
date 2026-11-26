@@ -263,13 +263,17 @@ document.getElementById('start-btn').addEventListener('click', () => { audio.ens
 document.getElementById('retry-btn').addEventListener('click', () => retryMission());
 document.getElementById('again-btn').addEventListener('click', () => startGame());
 
-function runShot(name) {
+async function runShot(name) {
   const staged = stageShot(name, world);
   renderer.setSky(staged.sky);
   renderer.snapCamera(world.state);
   renderer.setRain(staged.rain);
   screen = 'play';
   showOverlay(null);
+  // The 15 MB of file textures load after the first frames: wait for
+  // them (or the timeout) before painting, or a screenshot would catch
+  // the flat fallback materials instead of the textured scene.
+  if (renderer.ready) await renderer.ready;
   let painted = 0;
   function paint() {
     const s = world.state;

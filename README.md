@@ -141,15 +141,35 @@ game/
                    fins, intakes, afterburner, landing gear, trailing
                    red scarf on the tail fin)
     particles.js   ring bursts, splash, smoke, rain
+    textures.js    procedural texture loading (see below)
     render.js      Three.js scene, lighting, chase camera, rings, beacon
     hud.js         DOM HUD and instruments
     input.js       keyboard and mouse input
     shots.js       deterministic staged screenshots (?shot=…)
     main.js        game loop, screens, autoplay, shot mode
+  assets/          original procedural textures (generated in-session with
+                   a Python script: periodic-noise terrain/rock/sand/sea,
+                   sky-dome gradients with painted cloud bands, six city
+                   facades with lit windows, runway asphalt, jet livery
+                   with panel lines, rivets, weathering and PIPIT 07
+                   squadron markings, cloud sprites, palm bark, basalt)
   vendor/
     three.min.js   Three.js r128, vendored (not source)
 screenshots/      the four staged screenshots above
 ```
+
+## Rendering
+
+The game uses `MeshStandardMaterial` throughout: the fighter jet is metal
+(`metalness` 0.7, roughness 0.4) with a procedural panel-line livery and a
+reflective glass canopy, lit by an ACES tone-mapped directional sun with a
+1024 px shadow map, a hemisphere light, fog matched to the sky, and a
+canvas-gradient sky cubemap for reflections. The sea carries a colour
+texture plus a scrolling wave normal map for sun glitter (no glare beam),
+the islands use a 4096 px detail bump map over vertex-colour zoning
+(sand on shores, grass on flats, rock on slopes), and the clouds are
+textured billboards. Rain falls as visible vertical streaks, and the
+sunset finale is lit by 24 floating lanterns over the sea.
 
 ## License
 

@@ -8,20 +8,27 @@ import { buildTerrain } from './terrain.js';
 import { buildPlane } from './plane.js';
 import { createParticles } from './particles.js';
 import { createEnemies } from './enemies.js';
+import { loadTextures } from './textures.js';
 
 export function createRenderer(canvas, rng) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
+  // Photographic tone mapping: ACES rolls off the highlights like film,
+  // so sunsets and bright sea no longer clip to flat white.
+  if ('ACESFilmicToneMapping' in THREE) renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(SKIES.day.fog, 800, 5200);
   const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 12000);
   camera.position.set(0, 70, -30);
 
-  const terrain = buildTerrain(rng);
+  const { textures, ready } = loadTextures();
+  if (textures.envMap) scene.environment = textures.envMap;
+  const terrain = buildTerrain(rng, textures);
   scene.add(terrain.group);
-  const plane = buildPlane();
+  const plane = buildPlane(textures);
   scene.add(plane.group);
   const particles = createParticles(scene);
   const enemies = createEnemies(scene);
@@ -30,6 +37,17 @@ export function createRenderer(canvas, rng) {
   scene.add(hemi);
   const sunLight = new THREE.DirectionalLight(SKIES.day.sunLight, SKIES.day.sunIntensity);
   sunLight.position.set(-700, 620, 1400);
+  // Real shadows: a 1024 map following the plane, so the jet throws a
+  // shadow on the sea and islands below. Kept small for headless speed.
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(1024, 1024);
+  sunLight.shadow.camera.left = -260;
+  sunLight.shadow.camera.right = 260;
+  sunLight.shadow.camera.top = 260;
+  sunLight.shadow.camera.bottom = -260;
+  sunLight.shadow.camera.near = 50;
+  sunLight.shadow.camera.far = 3000;
+  sunLight.shadow.bias = -0.0008;
   scene.add(sunLight);
   scene.add(sunLight.target);
 
@@ -71,8 +89,8 @@ export function createRenderer(canvas, rng) {
   const sunDir = new THREE.Vector3();
   sunDir.set(SKIES.day.sunPos[0], SKIES.day.sunPos[1], SKIES.day.sunPos[2]).normalize();
 
-  function setSky(key) {
-    if (key === skyKey) return;
+  function setSky(key, force) {
+    if (key === skyKey && !force) return;
     skyKey = key;
     const s = terrain.setSky(key);
     scene.fog.color.setHex(s.fog);
@@ -81,6 +99,7 @@ export function createRenderer(canvas, rng) {
     hemi.intensity = s.hemiIntensity;
     sunLight.color.setHex(s.sunLight);
     sunLight.intensity = s.sunIntensity;
+    renderer.toneMappingExposure = key === 'day' ? 1.12 : key === 'dusk' ? 1.05 : 1.0;
     sunDir.set(s.sunPos[0], s.sunPos[1], s.sunPos[2]).normalize();
   }
   function resize() {
@@ -92,6 +111,15 @@ export function createRenderer(canvas, rng) {
 
   function draw(state, time) {
     const p = state.plane;
+    // The sky-dome file textures arrive after the first frames: once the
+    // loader finishes, re-apply the current sky so the photographic dome
+    // replaces the gradient fallback (and so screenshots see it).
+    if (!draw._texApplied && textures.sky && textures.sky.day && textures.sky.day.image) {
+      draw._texApplied = true;
+      const k = skyKey;
+      skyKey = '';
+      setSky(k);
+    }
     // Forward is -z (standard Three.js): forward = (sin h, 0, -cos h),
     // right = (cos h, 0, sin h), so +x appears on the right of the screen.
     const fx = Math.sin(p.heading);
@@ -183,7 +211,7 @@ export function createRenderer(canvas, rng) {
     camInit = true;
   }
   return {
-    draw, setSky, snapCamera, particles, terrain, scene, camera,
+    draw, setSky, snapCamera, particles, terrain, scene, camera, ready,
     setRain(on) { particles.setRain(on, camera.position); },
     rainOn() { return particles.isRainOn(); },
     get webgl() { return !!renderer.getContext(); },
