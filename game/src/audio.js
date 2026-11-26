@@ -181,5 +181,14 @@ export function createAudio() {
     skillRoll() { noiseBurst(0.35, 'bandpass', 900, 0.1); tone(500, 0.3, 'sine', 0.07, 0, 900); },
     skillFlare() { tone(1568, 0.5, 'sine', 0.12); tone(2093, 0.6, 'sine', 0.1, 0.08); noiseBurst(0.25, 'highpass', 2500, 0.08); },
     skillGlide() { tone(440, 0.7, 'sine', 0.07, 0, 660); tone(660, 0.7, 'sine', 0.05, 0.12, 880); },
+    // Cannon: rapid sharp cracks; explosion: a low noise burst.
+    skillCannon() {
+      for (let i = 0; i < 5; i += 1) {
+        tone(1900 - i * 200, 0.07, 'square', 0.09, i * 0.07);
+        noiseBurst(0.06, 'bandpass', 2200, 0.1, i * 0.07);
+      }
+    },
+    explosion() { noiseBurst(0.8, 'lowpass', 500, 0.3); tone(120, 0.8, 'sawtooth', 0.14, 0, 45); },
+    hit() { tone(220, 0.18, 'square', 0.1, 0, 140); noiseBurst(0.12, 'lowpass', 700, 0.12); },
   };
 }

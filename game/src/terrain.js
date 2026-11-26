@@ -7,7 +7,7 @@
 // storm clouds. Labels are drawn by the HUD as DOM text, so clouds and
 // rings can never cover them. Geometries and materials are shared across
 // palms, huts and boats, so the richer map costs few draw calls.
-import { ISLANDS, heightAt } from './islands.js';
+import { ISLANDS, CITY_BUILDINGS, heightAt } from './islands.js';
 import { PALETTE, SKIES } from './config.js';
 
 function skyTexture(sky) {
@@ -143,6 +143,109 @@ export function buildTerrain(rng) {
     g.add(win);
     g.position.set(x, y, z);
     g.rotation.y = rot;
+    return g;
+  }
+
+  // City building facade: a canvas texture of lit windows on a dark
+  // facade, used as both map and emissive map so the windows glow at
+  // dusk while the walls stay dark. One shared texture for every tower.
+  function buildingTexture() {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = '#2e3442';
+    g.fillRect(0, 0, 128, 256);
+    for (let y = 12; y < 244; y += 22) {
+      for (let x = 10; x < 118; x += 22) {
+        const lit = ((x * 7 + y * 13) % 10) < 6;
+        g.fillStyle = lit ? '#ffd97a' : '#1a2030';
+        g.fillRect(x, y, 12, 14);
+      }
+    }
+    return new THREE.CanvasTexture(c);
+  }
+  const facadeTex = buildingTexture();
+  const facadeMat = new THREE.MeshPhongMaterial({
+    map: facadeTex, emissiveMap: facadeTex, emissive: 0xaa8833, shininess: 15,
+  });
+  const facadeTopMat = new THREE.MeshPhongMaterial({ color: 0x3a4152, shininess: 10 });
+  const streetMat = new THREE.MeshPhongMaterial({ color: 0x2b2f3a, shininess: 5 });
+  const towerGlassMat = new THREE.MeshPhongMaterial({ color: 0x9fd8ef, shininess: 120, specular: 0xffffff });
+
+  // The coastal city Kota Langit: dozens of towers on the island
+  // plateau, streets, a harbour pier, a bridge to Bridge Isle, and an
+  // airport with a lit runway and a control tower on the east edge.
+  function buildCity(isl) {
+    const g = new THREE.Group();
+    const topY = heightAt(isl.x, isl.z);
+    for (const b of CITY_BUILDINGS) {
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d),
+        [facadeMat, facadeMat, facadeTopMat, facadeTopMat, facadeMat, facadeMat]);
+      tower.position.set(b.x, topY + b.h / 2, b.z);
+      tower.rotation.y = b.rot || 0;
+      g.add(tower);
+      if (b.tower) {
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+        beacon.position.set(b.x, topY + b.h + 1.2, b.z);
+        g.add(beacon);
+      }
+    }
+    // Streets: dark strips along the grid.
+    for (let i = -3; i <= 3; i += 1) {
+      const s1 = new THREE.Mesh(new THREE.PlaneGeometry(380, 10), streetMat);
+      s1.rotation.x = -Math.PI / 2;
+      s1.position.set(isl.x, topY + 0.4, isl.z + i * 58);
+      g.add(s1);
+      const s2 = new THREE.Mesh(new THREE.PlaneGeometry(10, 380), streetMat);
+      s2.rotation.x = -Math.PI / 2;
+      s2.position.set(isl.x + i * 58, topY + 0.4, isl.z);
+      g.add(s2);
+    }
+    // Traffic lights at four intersections: tiny red/green dots.
+    const lightRed = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+    const lightGreen = new THREE.MeshBasicMaterial({ color: 0x33ff77 });
+    for (const [lx, lz, mat] of [
+      [-58, -58, lightRed], [58, -58, lightGreen], [-58, 58, lightGreen], [58, 58, lightRed],
+    ]) {
+      const l = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 6), mat);
+      l.position.set(isl.x + lx, topY + 6, isl.z + lz);
+      g.add(l);
+    }
+    // Harbour pier with docked boats on the south shore.
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(90, 1.2, 8), streetMat);
+    pier.position.set(isl.x, 1.0, isl.z + isl.r * 0.92);
+    g.add(pier);
+    // Bridge south of the city centre, to Bridge Isle: deck, two
+    // towers, cables. It sits off the main flight path, so its towers
+    // never loom in front of a landing approach.
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(260, 2.5, 12), streetMat);
+    deck.position.set(isl.x + isl.r + 100, 14, isl.z + 180);
+    g.add(deck);
+    for (const bx of [isl.x + isl.r + 40, isl.x + isl.r + 170]) {
+      const tower = new THREE.Mesh(new THREE.BoxGeometry(6, 34, 6), facadeTopMat);
+      tower.position.set(bx, 30, isl.z + 180);
+      g.add(tower);
+    }
+    // Airport: lit runway strip + control tower on the east edge.
+    const runway = new THREE.Mesh(new THREE.BoxGeometry(16, 1.0, 200),
+      new THREE.MeshPhongMaterial({ color: 0x3a3f4a, shininess: 10 }));
+    runway.position.set(isl.x + 190, topY + 0.6, isl.z);
+    g.add(runway);
+    const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffd94d });
+    for (let i = 0; i < 9; i += 1) {
+      for (const side of [-1, 1]) {
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), edgeMat);
+        lamp.position.set(isl.x + 190 + side * 9, topY + 1.6, isl.z - 90 + i * 22);
+        g.add(lamp);
+      }
+    }
+    const ctBase = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 4.5, 26, 10), facadeTopMat);
+    ctBase.position.set(isl.x + 150, topY + 13, isl.z + 80);
+    g.add(ctBase);
+    const ctTop = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 4.5, 5, 10), towerGlassMat);
+    ctTop.position.set(isl.x + 150, topY + 28, isl.z + 80);
+    g.add(ctTop);
     return g;
   }
 
@@ -331,6 +434,9 @@ export function buildTerrain(rng) {
       orb.position.set(isl.x, topY + 11, isl.z);
       group.add(orb);
     }
+    if (isl.kind === 'city') {
+      group.add(buildCity(isl));
+    }
   }
   // Boats with wakes, sailing slow circles around the home islands.
   const boats = [];
@@ -346,6 +452,8 @@ export function buildTerrain(rng) {
     { cx: -500, cz: -1200, r: 260, speed: -0.04, phase: 2 },
     { cx: 600, cz: -1900, r: 300, speed: 0.035, phase: 4 },
     { cx: 0, cz: -3200, r: 340, speed: -0.03, phase: 1 },
+    { cx: -380, cz: -2800, r: 260, speed: 0.04, phase: 3 },
+    { cx: 900, cz: -2600, r: 280, speed: -0.035, phase: 5 },
   ];
   for (const route of boatRoutes) {
     const boat = new THREE.Group();
@@ -373,8 +481,9 @@ export function buildTerrain(rng) {
   const birdCentres = [
     { x: 0, z: -600, r: 180, y: 130 }, { x: 420, z: -2300, r: 150, y: 150 },
     { x: -950, z: -2600, r: 170, y: 120 }, { x: 0, z: -4200, r: 200, y: 170 },
+    { x: -380, z: -2500, r: 220, y: 140 }, { x: -140, z: -5100, r: 160, y: 160 },
   ];
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 12; i += 1) {
     const c = birdCentres[i % birdCentres.length];
     const bird = new THREE.Group();
     const left = new THREE.Mesh(wingGeo, birdMat);
@@ -385,6 +494,48 @@ export function buildTerrain(rng) {
     bird.add(right);
     group.add(bird);
     birds.push({ group: bird, left, right, ...c, speed: 0.25 + rng.range(-0.06, 0.06), phase: rng.range(0, Math.PI * 2) });
+  }
+  // Civilian air traffic: three small airliners on fixed circular
+  // routes, so the sky feels busy even between missions.
+  const traffic = [];
+  const trafficMat = new THREE.MeshPhongMaterial({ color: 0xe8ecf2, shininess: 40 });
+  const trafficTailMat = new THREE.MeshPhongMaterial({ color: 0x2f6fb2, shininess: 40 });
+  const trafficRoutes = [
+    { cx: -200, cz: -1200, r: 500, y: 210, speed: 0.05, phase: 0 },
+    { cx: 400, cz: -3200, r: 620, y: 260, speed: -0.04, phase: 2.5 },
+    { cx: -700, cz: -4200, r: 540, y: 230, speed: 0.045, phase: 4.5 },
+  ];
+  for (const route of trafficRoutes) {
+    const t = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 14, 10), trafficMat);
+    body.rotation.x = Math.PI / 2;
+    t.add(body);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.5, 10), trafficMat);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.z = 8.5;
+    t.add(nose);
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(20, 0.3, 3.2), trafficMat);
+    t.add(wings);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3.4, 2.4), trafficTailMat);
+    fin.position.set(0, 1.8, -6.2);
+    t.add(fin);
+    group.add(t);
+    traffic.push({ group: t, ...route });
+  }
+  // Floating lanterns for the sunset finale: warm glowing spheres
+  // that rise slowly over the sea near Memorial Hill. Only visible
+  // when the sky is sunset (mission 5).
+  const lanterns = [];
+  const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffb36b, transparent: true, opacity: 0.9 });
+  const lanternGeo = new THREE.SphereGeometry(1.6, 8, 6);
+  for (let i = 0; i < 24; i += 1) {
+    const l = new THREE.Mesh(lanternGeo, lanternMat);
+    const a = rng.range(0, Math.PI * 2);
+    const rr = rng.range(60, 420);
+    l.position.set(-140 + Math.cos(a) * rr, rng.range(6, 60), -5100 + Math.sin(a) * rr);
+    l.visible = false;
+    group.add(l);
+    lanterns.push({ mesh: l, speed: rng.range(1.5, 3.5), baseY: l.position.y });
   }
   // Clouds: bright basic material so they read as clouds at any light.
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: true });
@@ -422,6 +573,7 @@ export function buildTerrain(rng) {
     seaMat.color.setHex(s.sea);
     sun.material.color.setHex(s.sun);
     if (beam) beam.material.opacity = key === 'day' ? 0.08 : 0.22;
+    for (const l of lanterns) l.mesh.visible = key === 'sunset';
     cloudMat.color.setHex(key === 'day' ? 0xffffff : 0xffd9c4);
     return s;
   }
@@ -465,6 +617,18 @@ export function buildTerrain(rng) {
       const flap = Math.sin(time * 7 + bird.phase) * 0.45;
       bird.left.rotation.z = 0.25 + flap;
       bird.right.rotation.z = -0.25 - flap;
+    }
+    for (const t of traffic) {
+      const a = time * t.speed + t.phase;
+      t.group.position.set(t.cx + Math.cos(a) * t.r, t.y, t.cz + Math.sin(a) * t.r);
+      t.group.rotation.y = -a + (t.speed > 0 ? 0 : Math.PI);
+    }
+    if (skyKey === 'sunset') {
+      for (const l of lanterns) {
+        l.mesh.position.y += l.speed * dt;
+        if (l.mesh.position.y > 110) l.mesh.position.y = 6;
+        l.mesh.material.opacity = 0.75 + Math.sin(time * 2 + l.baseY) * 0.15;
+      }
     }
   }
   return { group, sea, setSky, update, lighthouseTop, volcanoTop, stormClouds, sun, setGlitter };

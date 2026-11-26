@@ -11,8 +11,9 @@ import { STEP } from './config.js';
 import { createRandom } from './random.js';
 import {
   createWorld, EVENT_RING, EVENT_FUEL, EVENT_DELIVERED, EVENT_CRASH,
+  EVENT_ENEMY_DOWN, EVENT_HIT,
 } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, ACTION_RESTART, ACTION_MUTE, ACTION_SKILL_BOOST, ACTION_SKILL_ROLL, ACTION_SKILL_FLARE, ACTION_SKILL_GLIDE, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_PAUSE, ACTION_RESTART, ACTION_MUTE, ACTION_SKILL_BOOST, ACTION_SKILL_ROLL, ACTION_SKILL_FLARE, ACTION_SKILL_GLIDE, ACTION_SKILL_CANNON, createInput } from './input.js';
 import { createRenderer } from './render.js';
 import { createHud } from './hud.js';
 import { createAudio } from './audio.js';
@@ -145,6 +146,15 @@ function stepGame() {
     if (MISSION_TARGETS[world.mission().id].land === 'water') audio.splash();
     if (world.state.score > best) { best = world.state.score; saveBest(best); }
   }
+  if (events & EVENT_ENEMY_DOWN) {
+    audio.explosion();
+    const d = world.state.lastEnemyDown;
+    if (d) {
+      renderer.particles.burst(d.x, d.y, d.z, 0xff7a1a, 22, 24, 1.0, 1.6);
+      renderer.particles.burst(d.x, d.y, d.z, 0x555555, 14, 12, 1.8, 2.4);
+    }
+  }
+  if (events & EVENT_HIT) audio.hit();
   if (events & EVENT_CRASH) endCrash();
   if (world.state.mode === 'complete') endComplete();
 }
@@ -159,6 +169,7 @@ function handleActions() {
       [ACTION_SKILL_ROLL, 'roll', () => audio.skillRoll()],
       [ACTION_SKILL_FLARE, 'flare', () => audio.skillFlare()],
       [ACTION_SKILL_GLIDE, 'glide', () => audio.skillGlide()],
+      [ACTION_SKILL_CANNON, 'cannon', () => audio.skillCannon()],
     ];
     for (const [flag, id, sound] of skillMap) {
       if (actions & flag && world.useSkill(id)) {
@@ -237,6 +248,8 @@ function frame(now) {
     heading: +p.heading.toFixed(3), speed: +p.speed.toFixed(1),
     letters: s.letters, score: s.score, time: +s.time.toFixed(1),
     errors: (window.__errors || []).length,
+    enemies: (s.enemies || []).filter((e) => e.active).length,
+    enemiesDown: s.enemiesDown || 0, lockTarget: s.lockTarget, damage: Math.round(s.damage),
   };
   writeShotInfo({});
 }
@@ -278,4 +291,7 @@ else {
   showOverlay('title-screen');
   announce('Sky Letters. Press Enter or click Start to fly.');
   requestAnimationFrame(frame);
+  // ?autoplay=1 is the scripted test pilot: it must start the game on
+  // its own, or it would idle on the title screen forever.
+  if (autoplay) startGame();
 }

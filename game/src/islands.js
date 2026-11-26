@@ -24,8 +24,40 @@ export const ISLANDS = [
   { id: 'coral', name: 'Coral Garden', x: 1000, z: -5000, r: 100, kind: 'lagoon', h: 10 },
   { id: 'drift', name: 'Driftwood Isle', x: -600, z: -4800, r: 85, kind: 'palm', h: 14 },
   { id: 'harbor', name: 'Harbor Rock', x: 300, z: -800, r: 70, kind: 'cliff', h: 40 },
+  { id: 'city', name: 'Kota Langit', x: -380, z: -2500, r: 240, kind: 'city', h: 16 },
+  { id: 'bridge', name: 'Bridge Isle', x: -60, z: -2320, r: 45, kind: 'palm', h: 10 },
 ];
 export function islandById(id) { return ISLANDS.find((i) => i.id === id); }
+// The city buildings, generated deterministically so the visible meshes
+// (terrain.js) and the flight model's collision (world.js) always agree.
+// A street grid with jitter; the east edge is kept clear for the airport
+// runway, and the centre is a plaza with the two towers.
+function hash(n) { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }
+export const CITY_BUILDINGS = (() => {
+  const list = [];
+  const cx = -380;
+  const cz = -2500;
+  let n = 0;
+  for (let gx = -3; gx <= 3; gx += 1) {
+    for (let gz = -3; gz <= 3; gz += 1) {
+      n += 1;
+      if (gx === 0 && gz === 0) continue; // central plaza
+      const x = cx + gx * 58 + (hash(n) - 0.5) * 16;
+      const z = cz + gz * 58 + (hash(n + 50) - 0.5) * 16;
+      if (x > cx + 130) continue; // airport runway strip on the east edge
+      const d = Math.hypot(x - cx, z - cz);
+      if (d > 195) continue;
+      const h = 12 + hash(n + 100) * 34;
+      const w = 16 + hash(n + 200) * 10;
+      const depth = 16 + hash(n + 300) * 10;
+      list.push({ x, z, w, d: depth, h, rot: (hash(n + 400) - 0.5) * 0.2 });
+    }
+  }
+  // Two landmark towers by the plaza.
+  list.push({ x: cx - 34, z: cz - 30, w: 26, d: 26, h: 66, rot: 0, tower: true });
+  list.push({ x: cx + 40, z: cz + 36, w: 24, d: 24, h: 58, rot: 0, tower: true });
+  return list;
+})();
 // Where each mission ends: the island and the kind of landing surface.
 export const MISSION_TARGETS = {
   1: { island: 'senja', land: 'water' },
@@ -41,6 +73,7 @@ function profile(d, r, kind) {
   let h = Math.cos(t * Math.PI * 0.5);
   h *= h;
   if (kind === 'airstrip' && t < 0.35) h = 0.55;
+  if (kind === 'city' && t < 0.85) h = 0.45; // flat plateau for the city
   if (kind === 'cliff') h = Math.pow(h, 0.7);
   if (kind === 'lagoon') h = Math.pow(h, 1.6) * 0.8;
   return h;

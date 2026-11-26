@@ -1,11 +1,13 @@
 // Sky Letters (3D) — the flight model and the mission rules, with no
 // drawing and no browser in it. Fixed-step physics: throttle, pitch, bank
-// and turn, stall, wind, fuel, damage, rings, landings and crashes. step()
-// advances one fixed step and returns what happened as bit flags. The plane
-// lives in Three.js units: x east, alt up, z forward (north is +z).
+// and turn, stall, wind, fuel, damage, rings, landings and crashes, plus
+// enemy drones (missions 3-5) that chase, fire slow tracers and can be
+// shot down with the Lock-On Cannon, and city-building collisions.
+// step() advances one fixed step and returns what happened as bit flags.
+// The plane lives in Three.js units: x east, alt up, z forward.
 import { FLIGHT } from './config.js';
 import { MISSIONS } from './missions.js';
-import { ISLANDS, MISSION_TARGETS, heightAt, islandById } from './islands.js';
+import { ISLANDS, MISSION_TARGETS, CITY_BUILDINGS, heightAt, islandById } from './islands.js';
 
 export const EVENT_RING = 1;
 export const EVENT_FUEL = 2;
@@ -14,6 +16,8 @@ export const EVENT_CRASH = 8;
 export const EVENT_STALL = 16;
 export const EVENT_COMPLETE = 32;
 export const EVENT_LAND = 64;
+export const EVENT_ENEMY_DOWN = 128;
+export const EVENT_HIT = 256;
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -32,6 +36,12 @@ function buildRings(mission) {
     if (mission.id === 4) y = 115;
     rings.push({ x, y, z: lerp(-80, target.z + 160, t), r: 20, done: false, fuel: false });
   }
+  // Mission 3 flies a low leg through the city: the third ring hangs
+  // over Kota Langit between the towers — a low pass through the city
+  // is fast, but the buildings below are not forgiving.
+  if (mission.id === 3 && rings[2]) {
+    rings[2] = { x: -380, y: 74, z: -2500, r: 20, done: false, fuel: false };
+  }
   // Green fuel rings on the long legs, flown after the golden rings.
   if (mission.id === 4) {
     rings.push({ x: -140, y: 120, z: -900, r: 20, done: false, fuel: true });
@@ -48,6 +58,11 @@ function buildRings(mission) {
   return rings;
 }
 
+// How many enemy drones each mission fields: none for the tutorial and
+// the birthday run, then two, two and three for the canyon, dusk and
+// sunset flights.
+const ENEMY_COUNT = { 1: 0, 2: 0, 3: 2, 4: 2, 5: 3 };
+
 export function createWorld(seed) {
   const state = {
     plane: { x: 0, z: 0, alt: 60, heading: 0, speed: 70, throttle: 0.6, bank: 0, pitch: 0, vs: 0, prop: 0 },
@@ -59,8 +74,11 @@ export function createWorld(seed) {
     skills: {
       boost: { cd: 0, active: 0 }, roll: { cd: 0, active: 0 },
       flare: { cd: 0, active: 0 }, glide: { cd: 0, active: 0 },
+      cannon: { cd: 0, active: 0 },
     },
     stormClearedUntil: 0, protectedUntil: 0, skillFlash: null,
+    enemies: [], tracers: [], lockTarget: -1, enemyLockBrokenUntil: 0,
+    lastEnemyDown: null, enemiesDown: 0,
   };
 
   function mission() { return MISSIONS[state.missionIndex]; }
@@ -73,7 +91,57 @@ export function createWorld(seed) {
     roll: { cooldown: 6, duration: 0.9, label: 'Barrel Roll!' },
     flare: { cooldown: 10, duration: 1.2, label: 'Flare Burst!' },
     glide: { cooldown: 9, duration: 4, label: 'Feather Glide!' },
+    cannon: { cooldown: 5, duration: 0.6, label: 'Lock-On Cannon!' },
   };
+
+  function spawnEnemies() {
+    const count = ENEMY_COUNT[mission().id] || 0;
+    state.enemies = [];
+    for (let i = 0; i < count; i += 1) {
+      state.enemies.push({
+        x: (i - (count - 1) / 2) * 260, y: 95 + i * 22, z: -750 - i * 260,
+        hp: 50, active: true, fireCd: 2.0 + i * 0.7, phase: i * 1.7,
+      });
+    }
+    state.tracers = [];
+    state.lockTarget = -1;
+    state.enemyLockBrokenUntil = 0;
+    state.lastEnemyDown = null;
+  }
+  // Place drones at exact positions (used by screenshot staging).
+  function placeEnemies(list) {
+    state.enemies = list.map((e) => ({
+      x: e.x, y: e.y, z: e.z, hp: 50, active: true, fireCd: 3, phase: 0,
+    }));
+    state.tracers = [];
+    state.lockTarget = list.length > 0 ? 0 : -1;
+  }
+
+  function fireCannon() {
+    const p = state.plane;
+    const fx = Math.sin(p.heading);
+    const fz = -Math.cos(p.heading);
+    let tx = p.x + fx * 200;
+    let ty = p.alt;
+    let tz = p.z + fz * 200;
+    const locked = state.lockTarget >= 0 && state.enemies[state.lockTarget]
+      && state.enemies[state.lockTarget].active
+      ? state.enemies[state.lockTarget] : null;
+    if (locked) { tx = locked.x; ty = locked.y; tz = locked.z; }
+    for (let i = 0; i < 5; i += 1) {
+      const dx = tx - p.x;
+      const dy = ty - p.alt;
+      const dz = tz - p.z;
+      const len = Math.hypot(dx, dy, dz) || 1;
+      const spread = (i - 2) * 0.02;
+      state.tracers.push({
+        x: p.x + fx * 10, y: p.alt + 1, z: p.z + fz * 10,
+        vx: (dx / len) * 420 + spread * 60, vy: (dy / len) * 420, vz: (dz / len) * 420,
+        life: 1.4, max: 1.4, from: 'cannon', dmg: 25,
+      });
+    }
+  }
+
   function useSkill(id) {
     if (state.mode !== 'fly') return false;
     const def = SKILL_DEFS[id];
@@ -83,8 +151,12 @@ export function createWorld(seed) {
     sk.active = def.duration;
     state.skillFlash = { text: def.label, until: state.time + 1.4 };
     if (id === 'boost') state.fuel = Math.max(0, state.fuel - 6);
-    if (id === 'flare') state.stormClearedUntil = state.time + 6;
+    if (id === 'flare') {
+      state.stormClearedUntil = state.time + 6;
+      state.enemyLockBrokenUntil = state.time + 6;
+    }
     if (id === 'roll') state.protectedUntil = state.time + 1.0;
+    if (id === 'cannon') fireCannon();
     return true;
   }
 
@@ -105,6 +177,7 @@ export function createWorld(seed) {
     state.stormClearedUntil = 0;
     state.protectedUntil = 0;
     state.skillFlash = null;
+    spawnEnemies();
   }
 
   function nextTarget() {
@@ -122,7 +195,7 @@ export function createWorld(seed) {
 
   function reset() {
     state.letters = 0; state.score = 0; state.hearts = 3; state.damage = 0;
-    state.deliveredCount = 0; state.elapsed = 0;
+    state.deliveredCount = 0; state.elapsed = 0; state.enemiesDown = 0;
     startMission(0);
   }
 
@@ -144,6 +217,108 @@ export function createWorld(seed) {
       return true;
     }
     return false;
+  }
+
+  // Enemy drones: chase the player, fire slow tracers, and take cannon
+  // fire. Returns event flags (enemy down, player hit).
+  function stepEnemies(dt) {
+    let events = 0;
+    const p = state.plane;
+    // Lock-on: the nearest live drone ahead, inside a 35-degree cone.
+    let best = -1;
+    let bestDist = 450;
+    const fx = Math.sin(p.heading);
+    const fz = -Math.cos(p.heading);
+    for (let i = 0; i < state.enemies.length; i += 1) {
+      const e = state.enemies[i];
+      if (!e.active) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - p.alt;
+      const dz = e.z - p.z;
+      const d = Math.hypot(dx, dy, dz);
+      const dot = (dx * fx + dz * fz) / (Math.hypot(dx, dz) || 1);
+      if (d < bestDist && dot > 0.5) { best = i; bestDist = d; }
+    }
+    state.lockTarget = best;
+    for (let i = 0; i < state.enemies.length; i += 1) {
+      const e = state.enemies[i];
+      if (!e.active) continue;
+      const dx = p.x - e.x;
+      const dy = p.alt - e.y;
+      const dz = p.z - e.z;
+      const d = Math.hypot(dx, dy, dz);
+      // Chase, a little faster when far so they catch up, never teleport.
+      const speed = d > 550 ? 150 : 88 + state.missionIndex * 4;
+      const wob = Math.sin(state.time * 1.3 + e.phase) * 14;
+      e.x += ((dx / (d || 1)) * speed + Math.cos(e.phase) * wob * 0.2) * dt;
+      e.y += clamp(dy / (d || 1) * speed, -30, 30) * dt;
+      e.z += (dz / (d || 1)) * speed * dt;
+      e.y = Math.max(e.y, heightAt(e.x, e.z) + 18);
+      if (e.y > 420) e.y = 420;
+      // Fire a slow tracer when close and the lock is not broken.
+      e.fireCd -= dt;
+      if (e.fireCd <= 0 && d < 340 && state.time > state.enemyLockBrokenUntil) {
+        e.fireCd = 2.3 + i * 0.3;
+        const lead = 0.4;
+        const tx = p.x + Math.sin(p.heading) * p.speed * lead;
+        const ty = p.alt + p.vs * lead;
+        const tz = p.z - Math.cos(p.heading) * p.speed * lead;
+        const sx = tx - e.x;
+        const sy = ty - e.y;
+        const sz = tz - e.z;
+        const len = Math.hypot(sx, sy, sz) || 1;
+        state.tracers.push({
+          x: e.x, y: e.y, z: e.z,
+          vx: (sx / len) * 190, vy: (sy / len) * 190, vz: (sz / len) * 190,
+          life: 2.5, max: 2.5, from: 'enemy', dmg: 10,
+        });
+      }
+      // A drone that rams the player is destroyed, and hurts the player.
+      if (d < 20) {
+        e.active = false;
+        state.enemiesDown += 1;
+        state.score += 100;
+        state.lastEnemyDown = { x: e.x, y: e.y, z: e.z };
+        state.damage = Math.min(100, state.damage + 25);
+        events |= EVENT_ENEMY_DOWN | EVENT_HIT;
+      }
+    }
+    // Tracers fly straight; enemy shots hurt on contact (unless a Barrel
+    // Roll is protecting the plane), cannon shots damage drones.
+    for (const t of state.tracers) {
+      if (t.life <= 0) continue;
+      t.x += t.vx * dt;
+      t.y += t.vy * dt;
+      t.z += t.vz * dt;
+      t.life -= dt;
+      if (t.from === 'enemy') {
+        const d = Math.hypot(t.x - p.x, t.y - p.alt, t.z - p.z);
+        if (d < 15 && state.time > state.protectedUntil) {
+          t.life = 0;
+          state.damage = Math.min(100, state.damage + t.dmg);
+          events |= EVENT_HIT;
+        }
+      } else {
+        for (const e of state.enemies) {
+          if (!e.active) continue;
+          const d = Math.hypot(t.x - e.x, t.y - e.y, t.z - e.z);
+          if (d < 18) {
+            t.life = 0;
+            e.hp -= t.dmg;
+            if (e.hp <= 0) {
+              e.active = false;
+              state.enemiesDown += 1;
+              state.score += 250;
+              state.lastEnemyDown = { x: e.x, y: e.y, z: e.z };
+              events |= EVENT_ENEMY_DOWN;
+            }
+            break;
+          }
+        }
+      }
+    }
+    state.tracers = state.tracers.filter((t) => t.life > 0);
+    return events;
   }
 
   function step(dt, input, harmless) {
@@ -169,7 +344,7 @@ export function createWorld(seed) {
     if (input.brake) p.throttle = clamp(p.throttle - dt * 0.8, 0, 1);
     if (state.fuel <= 0) p.throttle = 0;
     let targetSpeed = FLIGHT.minSpeed + p.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
-    if (state.skills.boost.active > 0) targetSpeed = Math.min(168, targetSpeed * 1.45);
+    if (state.skills.boost.active > 0) targetSpeed = Math.min(190, targetSpeed * 1.45);
     p.speed += (targetSpeed - p.speed) * 0.35 * dt;
     if (input.brake) p.speed = Math.max(FLIGHT.minSpeed, p.speed - 26 * dt);
     // Pitch and climb. Climbing is strong, sinking is gentle, so a landing
@@ -203,6 +378,14 @@ export function createWorld(seed) {
     p.x = clamp(p.x, -2200, 2200);
     p.z = clamp(p.z, -5600, 400);
     if (p.alt > 520) { p.alt = 520; p.vs = Math.min(p.vs, 0); }
+    // City buildings: flying into one scrapes the jet and damages it.
+    for (const b of CITY_BUILDINGS) {
+      if (Math.abs(p.x - b.x) < b.w / 2 + 3 && Math.abs(p.z - b.z) < b.d / 2 + 3 && p.alt < b.h + 3) {
+        state.damage = Math.min(100, state.damage + 22 * dt);
+      }
+    }
+    // Enemy drones (missions 3-5).
+    if (state.missionIndex >= 2) events |= stepEnemies(dt);
     // Rings.
     const ring = state.rings[state.ringIndex];
     if (ring && !ring.done) {
@@ -271,5 +454,6 @@ export function createWorld(seed) {
   return {
     state, reset, step, startMission, nextTarget, distanceToTarget,
     mission, targetIsland, advanceDialogue, retryMission, useSkill,
+    placeEnemies, spawnEnemies,
   };
 }

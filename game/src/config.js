@@ -11,10 +11,10 @@ export const PALETTE = {
   palmTrunk: 0x8a6f4d, rock: 0x9a8a76, volcano: 0x8a6f5c,
 };
 export const FLIGHT = {
-  minSpeed: 46, cruiseSpeed: 78, maxSpeed: 132, stallSpeed: 42,
-  climbRate: 26, sinkRate: 18, turnRate: 1.15, bankMax: 0.62,
+  minSpeed: 52, cruiseSpeed: 92, maxSpeed: 150, stallSpeed: 48,
+  climbRate: 30, sinkRate: 16, turnRate: 1.25, bankMax: 0.66,
   fuelMax: 100, fuelDrain: 0.55, fuelRingBonus: 34,
-  safeLandSpeed: 62, safeLandSink: 12, damageHard: 26, damageStall: 12,
+  safeLandSpeed: 66, safeLandSink: 12, damageHard: 26, damageStall: 12,
 };
 // Time-of-day looks: sky gradient stops, fog, sea colour, sun colour/height.
 export const SKIES = {
@@ -48,5 +48,6 @@ export const SKILLS = [
   { id: 'roll', name: 'Barrel Roll', key: '2 / Q', cooldown: 6, duration: 0.9, desc: 'Full roll — dodges storms, brief protection' },
   { id: 'flare', name: 'Flare Burst', key: '3 / F', cooldown: 10, duration: 1.2, desc: 'Bright flare — clears the storm ahead' },
   { id: 'glide', name: 'Feather Glide', key: '4 / E', cooldown: 9, duration: 4, desc: 'Slow descent, steady wings for a gentle landing' },
+  { id: 'cannon', name: 'Lock-On Cannon', key: '5 / C', cooldown: 5, duration: 0.6, desc: 'Locks the nearest enemy ahead and fires a cannon burst' },
 ];
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';

@@ -7,6 +7,7 @@ import { MISSION_TARGETS, islandById } from './islands.js';
 import { buildTerrain } from './terrain.js';
 import { buildPlane } from './plane.js';
 import { createParticles } from './particles.js';
+import { createEnemies } from './enemies.js';
 
 export function createRenderer(canvas, rng) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -23,6 +24,7 @@ export function createRenderer(canvas, rng) {
   const plane = buildPlane();
   scene.add(plane.group);
   const particles = createParticles(scene);
+  const enemies = createEnemies(scene);
 
   const hemi = new THREE.HemisphereLight(SKIES.day.hemiSky, SKIES.day.hemiGround, SKIES.day.hemiIntensity);
   scene.add(hemi);
@@ -96,9 +98,11 @@ export function createRenderer(canvas, rng) {
     const fz = -Math.cos(p.heading);
     const rx = Math.cos(p.heading);
     const rz = Math.sin(p.heading);
-    // Chase camera: behind, above and slightly to the side of the plane,
-    // smoothed, so the orange fuselage and canopy read in three-quarter view.
-    desired.set(p.x - fx * 32 + rx * 6.5, p.alt + 11, p.z - fz * 32 + rz * 6.5);
+    // Chase camera: behind, above and slightly to the side of the jet,
+    // smoothed, so the long fuselage, canopy and twin fins read in
+    // three-quarter view. The jet is longer than the old seaplane, so
+    // the camera sits a little further back.
+    desired.set(p.x - fx * 36 + rx * 7, p.alt + 12, p.z - fz * 36 + rz * 7);
     if (!camInit) {
       camPos.copy(desired);
       camInit = true;
@@ -166,6 +170,7 @@ export function createRenderer(canvas, rng) {
     // Storm clouds only hang over the canyon run (mission 3).
     for (const c of terrain.stormClouds) c.visible = state.missionIndex === 2;
     plane.update(state, 1 / 60, time);
+    enemies.update(state, time);
     terrain.update(1 / 60, time);
     particles.update(1 / 60, camera.position);
     renderer.render(scene, camera);
@@ -174,7 +179,7 @@ export function createRenderer(canvas, rng) {
     const p = state.plane;
     const fx = Math.sin(p.heading);
     const fz = -Math.cos(p.heading);
-    camPos.set(p.x - fx * 32 + Math.cos(p.heading) * 6.5, p.alt + 11, p.z - fz * 32 + Math.sin(p.heading) * 6.5);
+    camPos.set(p.x - fx * 36 + Math.cos(p.heading) * 7, p.alt + 12, p.z - fz * 36 + Math.sin(p.heading) * 7);
     camInit = true;
   }
   return {

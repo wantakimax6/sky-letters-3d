@@ -8,7 +8,7 @@ export const MISSIONS = [
     sky: 'day', brief: 'Grandma Sari has waited three years for news of her grandson. Fly through 3 golden rings, then land gently on the water runway at Pulau Senja.',
     lines: [
       { who: 'nara', text: 'Three years, one letter. Grandma Sari is waiting at Pulau Senja — the island of the evening sun.' },
-      { who: 'nara', text: 'Fly through the golden rings to find the wind, then land soft on the water. Letters first, always.' },
+      { who: 'nara', text: 'Mum’s old jet, repainted for letters. Fly through the golden rings to find the wind, then land soft on the water. Letters first, always.' },
     ],
     letter: 'Dear Grandma, the sea is calm and your grandson is well. He thinks of you every evening. — With love',
     deliverLines: [
@@ -31,10 +31,10 @@ export const MISSIONS = [
   },
   {
     id: 3, name: 'Two Brothers', kind: 'low', timeLimit: 0, wind: 10,
-    sky: 'day', brief: 'Fishermen Budi and Agus have not spoken in a year. Carry Budi’s apology low through the canyon between the islands — and stay clear of the storm clouds.',
+    sky: 'day', brief: 'Fishermen Budi and Agus have not spoken in a year. Carry Budi’s apology low through the canyon — and through the city of Kota Langit — while rogue drones patrol the route. Stay clear of the storm clouds, and shoot the drones down with the Lock-On Cannon.',
     lines: [
       { who: 'nara', text: 'Two brothers, one silence, one letter. Budi wrote “I am sorry” and could not say it aloud.' },
-      { who: 'nara', text: 'Fly low through the canyon, under the storm clouds. Some words need a quiet road.' },
+      { who: 'nara', text: 'Rogue drones patrol the canyon and the city, and they do not like couriers. Fly low, fly through the city ring, and let the cannon do the talking.' },
     ],
     letter: 'Brother, the sea is big enough for both our boats. Forgive me. Come home for supper. — Budi',
     deliverLines: [
@@ -44,10 +44,10 @@ export const MISSIONS = [
   },
   {
     id: 4, name: 'A Love Letter, Unsent for Ten Years', kind: 'fuel', timeLimit: 0, wind: 8,
-    sky: 'dusk', brief: 'A love letter kept in a drawer for ten years. Fly at dusk through the rain to the mountain airstrip — watch your fuel, and fly through the fuel rings.',
+    sky: 'dusk', brief: 'A love letter kept in a drawer for ten years. Fly at dusk through the rain to the mountain airstrip — watch your fuel, fly through the fuel rings, and clear the drones guarding the mountain road.',
     lines: [
       { who: 'nara', text: 'Ten years in a drawer. Ten years of “maybe tomorrow”. Tonight, this letter finally flies.' },
-      { who: 'nara', text: 'Dusk rain, low fuel. The fuel rings will keep Pipit in the air — fly through them, and do not give up.' },
+      { who: 'nara', text: 'Dusk rain, low fuel, drones over the mountain. The fuel rings will keep Pipit in the air — and the cannon will keep the sky clear.' },
     ],
     letter: 'I never stopped loving you. Ten years, and still, every sunset spells your name. Meet me where the mountain touches the sky. — Always',
     deliverLines: [
@@ -56,10 +56,10 @@ export const MISSIONS = [
   },
   {
     id: 5, name: 'The Last Letter', kind: 'memorial', timeLimit: 0, wind: 4,
-    sky: 'sunset', brief: 'Nara’s own letter — to her late mother, who taught her to fly. Follow the rings as they arc like a heart across the sunset, and land at the memorial hill.',
+    sky: 'sunset', brief: 'Nara’s own letter — to her late mother, who taught her to fly and once flew this very jet. Follow the rings as they arc like a heart across the sunset, past the last drones, and land at the memorial hill under the floating lanterns.',
     lines: [
-      { who: 'nara', text: 'Mum taught me to fly before I could ride a bicycle. This letter is mine. The last one.' },
-      { who: 'nara', text: 'Follow the rings, Mum. They arc like a heart across the sunset. I am coming home.' },
+      { who: 'nara', text: 'Mum taught me to fly before I could ride a bicycle — in this very jet. This letter is mine. The last one.' },
+      { who: 'nara', text: 'Follow the rings, Mum. They arc like a heart across the sunset. The last drones will not stop me. I am coming home.' },
     ],
     letter: 'Dear Mum, I fly the way you taught me — gently, bravely, and always toward the light. I miss you. I love you. — Nara',
     deliverLines: [

@@ -49,6 +49,7 @@
   #hud-skills .skill.cooling .strack .sfill { background: #ff9a3c; }
   #hud-skills .skill.active .strack .sfill { background: #ffd94d; }
   #hud-skill-flash { position: fixed; z-index: 5; left: 50%; top: 150px; transform: translateX(-50%); color: #ffd94d; font-weight: 800; font-size: 22px; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
+  #hud-lock { position: fixed; z-index: 5; left: 50%; top: 182px; transform: translateX(-50%); color: #ff8a5a; font-weight: 800; font-size: 16px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
   #hud-timer { position: fixed; z-index: 5; left: 50%; top: 84px; transform: translateX(-50%); color: #ffd94d; font-weight: 800; font-size: 18px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
   #hud-warn { position: fixed; z-index: 5; left: 50%; top: 116px; transform: translateX(-50%); color: #ff5a4d; font-weight: 800; font-size: 17px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
   #dialogue { position: fixed; z-index: 6; left: 50%; bottom: 18px; transform: translateX(-50%); width: 620px; max-width: calc(100vw - 480px); background: rgba(18, 20, 34, 0.88); border: 2px solid rgba(255, 201, 60, 0.7); border-radius: 14px; color: #fff; padding: 12px 16px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
@@ -67,7 +68,7 @@
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Sky Letters: fly the seaplane Pipit and deliver five handwritten letters across the archipelago"></canvas>
+<canvas id="game" aria-label="Sky Letters: fly the fighter jet Pipit and deliver five handwritten letters across the archipelago"></canvas>
 <p id="status" role="status" aria-live="polite"></p>
 <div id="shotinfo"></div>
 
@@ -82,6 +83,7 @@
 <div id="hud-objective-panel" class="panel">
   <div class="label" id="hud-objective">LETTER 1 OF 5 — For Grandma Sari</div>
   <div class="sub" id="hud-objective-sub">Golden ring — 165 m ahead</div>
+  <div class="meta" id="hud-enemies" style="color:#ff9a7a"></div>
   <div class="meta" id="hud-letters">Letters delivered: 0 / 5</div>
   <div class="hearts" id="hud-hearts">♥♥♥♡♡</div>
 </div>
@@ -95,8 +97,10 @@
   <div class="skill" id="skill-roll"><div class="sname">Barrel Roll</div><div class="skey">Key 2 / Q</div><div class="strack"><div class="sfill" id="skill-roll-fill" style="width:100%"></div></div></div>
   <div class="skill" id="skill-flare"><div class="sname">Flare Burst</div><div class="skey">Key 3 / F</div><div class="strack"><div class="sfill" id="skill-flare-fill" style="width:100%"></div></div></div>
   <div class="skill" id="skill-glide"><div class="sname">Feather Glide</div><div class="skey">Key 4 / E</div><div class="strack"><div class="sfill" id="skill-glide-fill" style="width:100%"></div></div></div>
+  <div class="skill" id="skill-cannon"><div class="sname">Lock-On Cannon</div><div class="skey">Key 5 / C</div><div class="strack"><div class="sfill" id="skill-cannon-fill" style="width:100%"></div></div></div>
 </div>
 <div id="hud-skill-flash" class="hidden"></div>
+<div id="hud-lock" class="hidden"></div>
 <div id="hud-timer" class="hidden"></div>
 <div id="hud-warn" class="hidden"></div>
 
@@ -112,13 +116,13 @@
 <div id="title-screen" class="overlay hidden">
   <div class="card">
     <h1>SKY LETTERS</h1>
-    <p>The radio network has failed. Nara, 19, flies her little seaplane <b>Pipit</b> across the archipelago, delivering the handwritten letters no one else will carry — a grandmother's news, a birthday wish, two brothers' apology, a love letter ten years late, and one last letter of her own.</p>
+    <p>The radio network has failed. Nara, 19, flies her late mother's fighter jet — <b>Pipit</b>, callsign of the old squadron, repainted as a letter courier — across the archipelago, delivering the handwritten letters no one else will carry. Rogue drones patrol the canyon and the mountain roads, and the city of Kota Langit glitters below. Five letters, five flights — and the last one is her own.</p>
     <p><b>Five letters. Five flights. Every letter finds its sky.</b></p>
     <div class="controls">
       ↑ / ↓ pitch &nbsp;•&nbsp; ← / → bank and turn &nbsp;•&nbsp; W / S or Shift / Ctrl throttle<br>
       Space brake &nbsp;•&nbsp; drag the mouse to steer &nbsp;•&nbsp; P pause &nbsp;•&nbsp; M mute &nbsp;•&nbsp; R retry<br>
-      Skills: 1 Sky Boost &nbsp;•&nbsp; 2 / Q Barrel Roll &nbsp;•&nbsp; 3 / F Flare Burst &nbsp;•&nbsp; 4 / E Feather Glide<br>
-      Fly through the golden rings, watch your fuel, and land slow and gentle.
+      Skills: 1 Sky Boost &nbsp;•&nbsp; 2 / Q Barrel Roll &nbsp;•&nbsp; 3 / F Flare Burst &nbsp;•&nbsp; 4 / E Feather Glide &nbsp;•&nbsp; 5 / C Lock-On Cannon<br>
+      Fly through the golden rings, watch your fuel, shoot down the drones, and land slow and gentle.
     </div>
     <button id="start-btn">Start flying</button>
   </div>
@@ -127,7 +131,7 @@
   <div class="card"><h2>Paused</h2><p>The letters will wait for you.</p><p>Press P to resume.</p></div>
 </div>
 <div id="crash-screen" class="overlay hidden">
-  <div class="card"><h2>Pipit is hurt</h2><p id="crash-reason"></p><p>Slow down, line up, and settle onto the water gently.</p><button id="retry-btn">Try again</button></div>
+  <div class="card"><h2>Pipit is hurt</h2><p id="crash-reason"></p><p>Slow down, line up, and settle in gently.</p><button id="retry-btn">Try again</button></div>
 </div>
 <div id="complete-screen" class="overlay hidden">
   <div class="card"><h2>Every letter finds its sky</h2><p id="complete-score"></p><p>Nara delivered all five letters. Her mother would be proud — the sky remembers every pilot who flies gently, bravely, and always toward the light.</p><button id="again-btn">Fly again</button></div>

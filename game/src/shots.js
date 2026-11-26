@@ -65,6 +65,24 @@ export function stageShot(name, world) {
     state.dialogueIndex = 0;
     state.mode = 'dialogue';
   }
+  // Enemy drones in frame for the combat missions, placed ahead of the
+  // staged plane so the lock diamond and the red lights read in the shot.
+  if (name === 'storm') {
+    world.placeEnemies([
+      { x: -120, y: 78, z: -1560 },
+      { x: 160, y: 72, z: -1750 },
+    ]);
+  } else if (name === 'landing') {
+    world.placeEnemies([
+      { x: 140, y: 130, z: -2620 },
+      { x: -160, y: 120, z: -2750 },
+    ]);
+  } else if (name === 'sunset') {
+    world.placeEnemies([
+      { x: 240, y: 212, z: -1820 },
+      { x: -60, y: 190, z: -1950 },
+    ]);
+  }
   return { sky: shot.sky, rain: shot.rain, mission: m };
 }
 

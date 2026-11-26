@@ -1,13 +1,21 @@
-// Sky Letters (3D) — Pipit, the orange-and-cream seaplane, built only
-// from Three.js geometry: fuselage, wings, floats, a spinning translucent
-// propeller disc and Nara's red scarf trailing behind the cockpit.
+// Sky Letters (3D) — Pipit, the fighter jet. Nara flies her late
+// mother's decommissioned fighter jet, repainted as a letter courier:
+// a sleek pointed nose, tinted bubble canopy, swept-back wings, twin
+// canted tail fins, air intakes, an afterburner flame that grows with
+// throttle, and retractable landing gear. Built only from Three.js
+// geometry, two-tone grey and orange, with thin dark panel lines and
+// Nara's red scarf as a small ribbon on the tail fin.
 // Forward is +z; heading 0 faces north (+z).
 export function buildPlane() {
-  const orange = new THREE.MeshPhongMaterial({ color: 0xf96a12, shininess: 25 });
-  const cream = new THREE.MeshPhongMaterial({ color: 0xfff3d6, shininess: 40 });
+  const grey = new THREE.MeshPhongMaterial({ color: 0x8a94a6, shininess: 70 });
+  const greyDark = new THREE.MeshPhongMaterial({ color: 0x5a6474, shininess: 60 });
+  const orange = new THREE.MeshPhongMaterial({ color: 0xf96a12, shininess: 40 });
   const red = new THREE.MeshPhongMaterial({ color: 0xd93b2b, shininess: 30 });
-  const dark = new THREE.MeshPhongMaterial({ color: 0x3a2a20, shininess: 20 });
-  const glass = new THREE.MeshPhongMaterial({ color: 0x9fd8ef, shininess: 120, specular: 0xffffff });
+  const dark = new THREE.MeshPhongMaterial({ color: 0x23232c, shininess: 25 });
+  const glass = new THREE.MeshPhongMaterial({
+    color: 0x14324e, shininess: 220, specular: 0xffffff, transparent: true, opacity: 0.92,
+  });
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0x2a2f3a });
 
   const group = new THREE.Group();
   group.rotation.order = 'YXZ';
@@ -22,90 +30,118 @@ export function buildPlane() {
     return m;
   }
 
-  // Fuselage: cylinder along z, nose cone, tail cone.
-  add(new THREE.CylinderGeometry(1.15, 0.85, 8.5, 14), orange, 0, 0, 0, Math.PI / 2, 0, 0);
-  add(new THREE.ConeGeometry(1.15, 2.4, 14), orange, 0, 0, 5.4, Math.PI / 2, 0, 0);
-  add(new THREE.ConeGeometry(0.85, 2.6, 14), orange, 0, 0, -5.5, -Math.PI / 2, 0, 0);
-  // Red cheatlines along the fuselage sides, so the orange body reads
-  // from behind and above instead of washing out to pale tan.
-  add(new THREE.BoxGeometry(0.18, 0.55, 7.6), red, -1.08, 0.15, 0.3, 0, 0, 0);
-  add(new THREE.BoxGeometry(0.18, 0.55, 7.6), red, 1.08, 0.15, 0.3, 0, 0, 0);
-  // Canopy: a glossy bubble over the cockpit.
-  const canopy = add(new THREE.SphereGeometry(1.25, 18, 12), glass, 0, 1.05, 1.7, 0, 0, 0);
-  canopy.scale.set(0.9, 0.72, 1.5);
-  // Main wings with orange tips, tail wings and the vertical fin.
-  add(new THREE.BoxGeometry(17, 0.35, 3.4), cream, 0, 0.55, 0.6, 0, 0, 0);
-  add(new THREE.BoxGeometry(1.6, 0.38, 3.4), orange, -8.2, 0.55, 0.6, 0, 0, 0);
-  add(new THREE.BoxGeometry(1.6, 0.38, 3.4), orange, 8.2, 0.55, 0.6, 0, 0, 0);
-  add(new THREE.BoxGeometry(6.5, 0.28, 2.0), cream, 0, 0.5, -4.7, 0, 0, 0);
-  add(new THREE.BoxGeometry(0.3, 3.0, 2.2), orange, 0, 1.6, -4.9, 0, 0, 0);
-  // A white envelope emblem on the tail fin.
-  add(new THREE.BoxGeometry(0.34, 1.0, 1.3), cream, 0, 1.7, -4.9, 0, 0, 0);
-  // Floats under the wings, on short struts.
-  add(new THREE.CylinderGeometry(0.55, 0.55, 5.5, 10), cream, -2.6, -1.7, 0.8, Math.PI / 2, 0, 0);
-  add(new THREE.CylinderGeometry(0.55, 0.55, 5.5, 10), cream, 2.6, -1.7, 0.8, Math.PI / 2, 0, 0);
-  add(new THREE.BoxGeometry(0.25, 1.4, 0.25), dark, -2.6, -0.9, 0.8, 0, 0, 0);
-  add(new THREE.BoxGeometry(0.25, 1.4, 0.25), dark, 2.6, -0.9, 0.8, 0, 0, 0);
+  // Fuselage: long slim body, pointed nose cone, tapered tail.
+  add(new THREE.CylinderGeometry(0.95, 0.8, 9.5, 14), grey, 0, 0, 0, Math.PI / 2, 0, 0);
+  add(new THREE.ConeGeometry(0.95, 4.2, 14), greyDark, 0, 0, 6.8, Math.PI / 2, 0, 0);
+  add(new THREE.ConeGeometry(0.8, 2.8, 14), greyDark, 0, 0, -6.1, -Math.PI / 2, 0, 0);
+  // Nose tip in orange, like a letter seal.
+  add(new THREE.ConeGeometry(0.32, 1.1, 10), orange, 0, 0, 9.3, Math.PI / 2, 0, 0);
+  // Panel lines: thin dark strips along the fuselage, so the grey body
+  // reads as built metal instead of a flat tube.
+  add(new THREE.BoxGeometry(0.06, 0.1, 8.6), lineMat, -0.92, 0.28, 0.2, 0, 0, 0);
+  add(new THREE.BoxGeometry(0.06, 0.1, 8.6), lineMat, 0.92, 0.28, 0.2, 0, 0, 0);
+  add(new THREE.BoxGeometry(1.5, 0.06, 0.1), lineMat, 0, 0.98, 2.6, 0, 0, 0);
+  add(new THREE.BoxGeometry(1.5, 0.06, 0.1), lineMat, 0, 0.92, -2.4, 0, 0, 0);
+  // Bubble canopy: tinted, glossy, stretched over the cockpit.
+  const canopy = add(new THREE.SphereGeometry(1.05, 18, 12), glass, 0, 0.95, 2.2, 0, 0, 0);
+  canopy.scale.set(0.85, 0.7, 1.7);
+  // Air intakes under the fuselage sides, ahead of the wings.
+  add(new THREE.BoxGeometry(0.9, 0.9, 3.4), greyDark, -1.25, -0.55, 1.4, 0, 0, 0);
+  add(new THREE.BoxGeometry(0.9, 0.9, 3.4), greyDark, 1.25, -0.55, 1.4, 0, 0, 0);
+  add(new THREE.BoxGeometry(0.94, 0.5, 2.2), dark, -1.25, -0.55, 3.1, 0, 0, 0);
+  add(new THREE.BoxGeometry(0.94, 0.5, 2.2), dark, 1.25, -0.55, 3.1, 0, 0, 0);
+  // Swept-back main wings: long thin boxes angled back, orange tips.
+  // The sweep sign matters: the outer end must sit toward the tail
+  // (negative z), or the tips float detached from the wing.
+  add(new THREE.BoxGeometry(8.6, 0.22, 2.6), grey, -4.6, 0.35, -0.6, 0, -0.55, 0);
+  add(new THREE.BoxGeometry(8.6, 0.22, 2.6), grey, 4.6, 0.35, -0.6, 0, 0.55, 0);
+  add(new THREE.BoxGeometry(1.7, 0.24, 2.2), orange, -8.3, 0.35, -2.4, 0, -0.55, 0);
+  add(new THREE.BoxGeometry(1.7, 0.24, 2.2), orange, 8.3, 0.35, -2.4, 0, 0.55, 0);
+  // Tailplanes, smaller and swept the same way.
+  add(new THREE.BoxGeometry(3.6, 0.18, 1.6), grey, -2.4, 0.3, -5.2, 0, -0.5, 0);
+  add(new THREE.BoxGeometry(3.6, 0.18, 1.6), grey, 2.4, 0.3, -5.2, 0, 0.5, 0);
+  // Twin tail fins, canted outward, orange tips.
+  add(new THREE.BoxGeometry(0.22, 3.2, 2.4), greyDark, -1.15, 1.7, -5.4, 0, 0, 0.28);
+  add(new THREE.BoxGeometry(0.22, 3.2, 2.4), greyDark, 1.15, 1.7, -5.4, 0, 0, -0.28);
+  add(new THREE.BoxGeometry(0.24, 0.9, 2.0), orange, -1.5, 3.1, -5.4, 0, 0, 0.28);
+  add(new THREE.BoxGeometry(0.24, 0.9, 2.0), orange, 1.5, 3.1, -5.4, 0, 0, -0.28);
+  // A white envelope emblem on the left fin.
+  add(new THREE.BoxGeometry(0.26, 0.9, 1.2), new THREE.MeshPhongMaterial({ color: 0xfff3d6, shininess: 30 }), -1.32, 1.7, -5.4, 0, 0, 0.28);
   // Wing-tip navigation lights.
-  const navRed = new THREE.MeshBasicMaterial({ color: 0xff2222 });
-  const navGreen = new THREE.MeshBasicMaterial({ color: 0x22ff66 });
-  add(new THREE.SphereGeometry(0.28, 8, 6), navRed, -8.9, 0.55, 0.6, 0, 0, 0);
-  add(new THREE.SphereGeometry(0.28, 8, 6), navGreen, 8.9, 0.55, 0.6, 0, 0, 0);
+  add(new THREE.SphereGeometry(0.26, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2222 }), -8.9, 0.35, -2.9, 0, 0, 0);
+  add(new THREE.SphereGeometry(0.26, 8, 6), new THREE.MeshBasicMaterial({ color: 0x22ff66 }), 8.9, 0.35, -2.9, 0, 0, 0);
 
-  // Propeller: two blades plus a translucent spinning disc, so it reads
-  // as motion blur instead of a solid bar.
-  const prop = new THREE.Group();
-  prop.position.set(0, 0, 6.7);
-  const bladeMat = new THREE.MeshPhongMaterial({ color: 0x2b2118, shininess: 20 });
-  const blade1 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 4.8, 0.12), bladeMat);
-  const blade2 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 4.8, 0.12), bladeMat);
-  blade2.rotation.z = Math.PI / 2;
-  const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(2.5, 24),
-    new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.22, side: THREE.DoubleSide }),
+  // Afterburner: a glowing flame cone at the tail, plus a hot nozzle ring.
+  // Its scale follows throttle, and it flares while Sky Boost is active.
+  add(new THREE.CylinderGeometry(0.85, 0.7, 0.9, 12), dark, 0, 0, -7.6, Math.PI / 2, 0, 0);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, opacity: 0.7 });
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.55, 4.2, 12), flameMat);
+  flame.rotation.x = -Math.PI / 2;
+  flame.position.set(0, 0, -9.6);
+  group.add(flame);
+  const flameCore = new THREE.Mesh(
+    new THREE.ConeGeometry(0.3, 3.0, 10),
+    new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.95 }),
   );
-  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), red);
-  prop.add(blade1); prop.add(blade2); prop.add(disc); prop.add(hub);
-  group.add(prop);
-
-  // Nara's red scarf: a ribbon of small segments trailing behind the
-  // cockpit, waving in the slipstream.
-  const scarfSegments = [];
-  for (let i = 0; i < 8; i += 1) {
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.55 - i * 0.03, 0.12, 0.95), red);
-    seg.position.set(0, 1.35, -0.6 - i * 0.95);
-    group.add(seg);
-    scarfSegments.push(seg);
-  }
-  // Skill glows: an engine glow while Sky Boost is active, and soft wing
-  // glows while Feather Glide steadies the plane.
+  flameCore.rotation.x = -Math.PI / 2;
+  flameCore.position.set(0, 0, -9.2);
+  group.add(flameCore);
   const boostGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(1.0, 10, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, opacity: 0.55 }),
+    new THREE.SphereGeometry(1.1, 10, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, opacity: 0.5 }),
   );
-  boostGlow.position.set(0, 0, -6.2);
+  boostGlow.position.set(0, 0, -8.6);
   boostGlow.visible = false;
   group.add(boostGlow);
   const glideGlowMat = new THREE.MeshBasicMaterial({
-    color: 0x9fe8ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+    color: 0x9fe8ff, transparent: true, opacity: 0.45, side: THREE.DoubleSide,
   });
-  const glideGlowL = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), glideGlowMat);
+  const glideGlowL = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.4), glideGlowMat);
   glideGlowL.rotation.x = -Math.PI / 2;
-  glideGlowL.position.set(-4.5, 0.85, 0.6);
+  glideGlowL.position.set(-4.5, 0.6, -0.6);
   glideGlowL.visible = false;
   group.add(glideGlowL);
-  const glideGlowR = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), glideGlowMat);
+  const glideGlowR = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.4), glideGlowMat);
   glideGlowR.rotation.x = -Math.PI / 2;
-  glideGlowR.position.set(4.5, 0.85, 0.6);
+  glideGlowR.position.set(4.5, 0.6, -0.6);
   glideGlowR.visible = false;
   group.add(glideGlowR);
+
+  // Landing gear: nose wheel and two main wheels, extended only when
+  // the jet is slow (a landing approach) — retracted in fast flight.
+  const gear = new THREE.Group();
+  const wheelMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 10 });
+  const strutMat = new THREE.MeshPhongMaterial({ color: 0xb8bec8, shininess: 60 });
+  function wheel(x, y, z) {
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.4, 6), strutMat);
+    strut.position.set(x, y + 0.7, z);
+    gear.add(strut);
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 10), wheelMat);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(x, y, z);
+    gear.add(w);
+  }
+  wheel(0, -1.9, 4.6);
+  wheel(-1.5, -1.9, -0.6);
+  wheel(1.5, -1.9, -0.6);
+  gear.visible = false;
+  group.add(gear);
+
+  // Nara's red scarf: a short ribbon trailing from the left tail fin,
+  // waving in the slipstream — the one warm thing on a grey jet. It
+  // hangs off the fin, not down the fuselage centreline, so it reads
+  // as a ribbon and never as a ladder on the tail.
+  const scarfSegments = [];
+  for (let i = 0; i < 6; i += 1) {
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(0.5 - i * 0.03, 0.1, 0.85), red);
+    seg.position.set(-1.6, 2.6, -6.2 - i * 0.85);
+    group.add(seg);
+    scarfSegments.push(seg);
+  }
 
   function update(state, dt, time) {
     const p = state.plane;
     group.position.set(p.x, p.alt, p.z);
-    // Nose must point along (sin h, 0, -cos h): yaw is PI - heading,
-    // and rolling right (bank > 0) is a positive rotation about the
-    // nose axis in the model's own frame.
     group.rotation.y = Math.PI - p.heading;
     group.rotation.x = -p.pitch;
     group.rotation.z = p.bank;
@@ -115,20 +151,27 @@ export function buildPlane() {
       const progress = 1 - rollSk.active / 0.9;
       group.rotation.z += progress * Math.PI * 2;
     }
+    // Afterburner flame: grows with throttle, flares on boost, flickers.
     const boostSk = state.skills && state.skills.boost;
-    boostGlow.visible = !!(boostSk && boostSk.active > 0);
+    const boosting = !!(boostSk && boostSk.active > 0);
+    const flameScale = (0.45 + p.throttle * 0.75) * (boosting ? 1.7 : 1) * (1 + Math.sin(time * 23) * 0.08);
+    flame.scale.set(flameScale, flameScale, 1 + p.throttle * 0.5);
+    flameCore.scale.set(flameScale, flameScale, 1 + p.throttle * 0.4);
+    flameMat.opacity = 0.55 + p.throttle * 0.35;
+    boostGlow.visible = boosting;
     if (boostGlow.visible) boostGlow.scale.setScalar(1 + Math.sin(time * 18) * 0.15);
     const glideSk = state.skills && state.skills.glide;
     const gliding = !!(glideSk && glideSk.active > 0);
     glideGlowL.visible = gliding;
     glideGlowR.visible = gliding;
-    prop.rotation.z += dt * (10 + p.throttle * 34);
+    // Gear down only on a slow approach; up in fast flight.
+    gear.visible = p.speed < 68;
     for (let i = 0; i < scarfSegments.length; i += 1) {
       const seg = scarfSegments[i];
       const k = (i + 1) / scarfSegments.length;
-      seg.position.x = Math.sin(time * 3.2 + i * 0.75) * 0.55 * k;
-      seg.position.y = 1.35 + Math.sin(time * 2.3 + i * 0.9) * 0.22 * k - k * 0.25;
-      seg.rotation.y = Math.sin(time * 2.8 + i * 0.6) * 0.5 * k;
+      seg.position.x = -1.6 + Math.sin(time * 3.4 + i * 0.8) * 0.5 * k;
+      seg.position.y = 2.6 + Math.sin(time * 2.5 + i * 0.9) * 0.2 * k - k * 0.2;
+      seg.rotation.y = Math.sin(time * 3.0 + i * 0.6) * 0.5 * k;
     }
   }
   return { group, update };

@@ -27,11 +27,14 @@ export function createHud(world) {
     dialogue: $('dialogue'), dlgPortrait: $('dlg-portrait'),
     dlgName: $('dlg-name'), dlgText: $('dlg-text'),
     skillFlash: $('hud-skill-flash'),
+    lock: $('hud-lock'),
+    enemies: $('hud-enemies'),
     skills: {
       boost: { box: $('skill-boost'), fill: $('skill-boost-fill') },
       roll: { box: $('skill-roll'), fill: $('skill-roll-fill') },
       flare: { box: $('skill-flare'), fill: $('skill-flare-fill') },
       glide: { box: $('skill-glide'), fill: $('skill-glide-fill') },
+      cannon: { box: $('skill-cannon'), fill: $('skill-cannon-fill') },
     },
   };
   const compassCtx = el.compass.getContext('2d');
@@ -148,6 +151,20 @@ export function createHud(world) {
       el.skillFlash.classList.remove('hidden');
     } else {
       el.skillFlash.classList.add('hidden');
+    }
+    // Lock-on: the cannon has a drone in its sights.
+    const live = (state.enemies || []).filter((e) => e.active).length;
+    if (state.lockTarget >= 0 && state.mode === 'fly' && live > 0) {
+      el.lock.textContent = '◈ LOCKED — ENEMY DRONE';
+      el.lock.classList.remove('hidden');
+    } else {
+      el.lock.classList.add('hidden');
+    }
+    if (live > 0 && state.mode === 'fly') {
+      el.enemies.textContent = `Hostiles: ${live} drone${live === 1 ? '' : 's'} — press 5 / C to fire the cannon`;
+      el.enemies.classList.remove('hidden');
+    } else {
+      el.enemies.classList.add('hidden');
     }
     if (m.timeLimit > 0 && state.mode === 'fly') {
       el.timer.textContent = `Time left ${Math.max(0, Math.ceil(m.timeLimit - state.missionTime))} s`;
