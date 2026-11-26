@@ -1,3 +1,10 @@
+// Sky Letters — make.fun entrypoint for this hand-in.
+// This entrypoint assembles the Sky Letters flight game for the judge: it copies
+// the finished game/ (the Three.js fighter-jet courier game, its textures and sounds),
+// the four screenshots/, and writes dossier.json summarising the entry for scoring.
+// Run it with MAKEFUN_OUTPUT_DIR set to a scratch folder outside the repo, e.g.
+//   MAKEFUN_OUTPUT_DIR=out node main.ts
+// and the hand-in lands in out/ ready for the kit check and submission.
 // A working best-game-01 entry (Node 22, standard library only): the game is this directory's
 // game/ folder, plain static files a desktop browser loads offline (game/index.html and its ES
 // modules, no library and no network request), and the program hands it in. It copies game/ and
